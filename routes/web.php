@@ -118,6 +118,7 @@ use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\ToyyibpayPaymentController;
 use App\Http\Controllers\XenditPaymentController;
 use App\Http\Controllers\YooKassaController;
+use App\Http\Controllers\ShiftController;
 use Illuminate\Support\Facades\Artisan;
 
 // use App\Http\Controllers\PlanRequestController;
@@ -1715,6 +1716,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('request-amount-cancel/{id}', [ReferralProgramController::class, 'requestCancel'])->name('request.amount.cancel');
     Route::post('request-amount-store/{id}', [ReferralProgramController::class, 'requestedAmountStore'])->name('request.amount.store');
     Route::get('request-amount/{id}/{status}', [ReferralProgramController::class, 'requestedAmount'])->name('amount.request');
+
+    Route::resource('shift', ShiftController::class)->middleware(
+        [
+            'auth',
+            'XSS',
+        ]
+    );
+
 
     // remove biometric code
     // BiometricAttendance

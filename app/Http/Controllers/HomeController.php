@@ -14,9 +14,11 @@ use App\Models\Order;
 use App\Models\Payees;
 use App\Models\Payer;
 use App\Models\Plan;
+use App\Models\Shift;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Models\Utility;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class HomeController extends Controller
@@ -79,12 +81,34 @@ class HomeController extends Controller
 
                 $date               = date("Y-m-d");
                 $time               = date("H:i:s");
+                $shift = Shift::find( !empty(\Auth::user()->employee) ? \Auth::user()->employee->shift_id : 0);
+
                 $employeeAttendance = AttendanceEmployee::orderBy('id', 'desc')->where('employee_id', '=', !empty(\Auth::user()->employee) ? \Auth::user()->employee->id : 0)->where('date', '=', $date)->first();
+
+                if ($shift && $shift->crossesMidnight()) {
+                    $currentShiftStart = Carbon::createFromFormat('H:i:s', $shift->start_time);
+                    $currentShiftBeforeHour =  Carbon::createFromFormat('H:i:s', $shift->start_time)->subHour(1);
+
+                    if(!$employeeAttendance && strtotime($time) < strtotime($currentShiftBeforeHour->format("H:i:s"))) {
+
+                        $date = Carbon::now()->subDay(1)->format('Y-m-d');
+                    }
+
+
+                    $employeeAttendance = AttendanceEmployee::orderBy('id', 'desc')
+                    ->where('employee_id', '=', $emp->id)
+                    ->where('date', '=', $date)
+                    ->first();
+
+                }
+
 
                 $officeTime['startTime'] = Utility::getValByName('company_start_time');
                 $officeTime['endTime']   = Utility::getValByName('company_end_time');
 
-                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime'));
+
+
+                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime', 'shift'));
             } else if ($user->type == 'super admin') {
                 $user                       = \Auth::user();
                 $user['total_user']         = $user->countCompany();
@@ -151,7 +175,9 @@ class HomeController extends Controller
                     $storage_limit = 0;
                 }
 
-                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'activeJob', 'inActiveJOb', 'meetings', 'countEmployee', 'countUser', 'countTicket', 'countOpenTicket', 'countCloseTicket', 'notClockIns', 'accountBalance', 'totalPayee', 'totalPayer', 'users', 'plan', 'storage_limit'));
+                $shift = null;
+
+                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'activeJob', 'inActiveJOb', 'meetings', 'countEmployee', 'countUser', 'countTicket', 'countOpenTicket', 'countCloseTicket', 'notClockIns', 'accountBalance', 'totalPayee', 'totalPayer', 'users', 'plan', 'storage_limit', 'shift'));
             }
         } else {
             if (!file_exists(storage_path() . "/installed")) {

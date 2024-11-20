@@ -142,6 +142,10 @@
                                         {!! Form::label('company_doj', __('Company Date Of Joining'), ['class' => '  form-label']) !!}<x-required></x-required>
                                         {{ Form::date('company_doj', null, ['class' => 'form-control current_date', 'required' => 'required', 'autocomplete' => 'off', 'placeholder' => 'Select company date of joining']) }}
                                     </div>
+                                    <div class="form-group col-md-6">
+                                        {{ Form::label('shift_id', __('Select Employee Shift'), ['class' => 'form-label']) }}<x-required></x-required>
+                                        {{ Form::select('shift_id', $shifts, null, ['class' => 'form-control', 'id' => 'shift_id', 'required' => 'required', 'placeholder' => __('Select Employee Shift')]) }}
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -169,6 +169,17 @@
             @endif
             <!-- employee-->
 
+            <!-- Shifts-->
+            @if (Gate::check('Manage Shift'))
+
+                <li class="dash-item {{ Request::segment(1) == 'shift' ? 'active' : '' }}">
+                    <a href="{{ route('shift.index') }}" class="dash-link"><span class="dash-micon"><i
+                                class="ti ti-clock"></i></span><span
+                            class="dash-mtext">{{ __('Shift') }}</span></a>
+                </li>
+            @endif
+            <!-- employee-->
+
             <!-- payroll-->
             @if (Gate::check('Manage Set Salary') || Gate::check('Manage Pay Slip'))
                 <li
@@ -257,7 +268,7 @@
                                 </ul>
                             </li>
                         @endcan
-                        
+
                         {{-- remove biometric code --}}
                         {{-- @can('Manage Biometric Attendance')
 

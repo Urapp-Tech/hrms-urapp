@@ -27,6 +27,7 @@ use App\Models\LoginDetail;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\NOC;
 use App\Models\PaySlip;
+use App\Models\Shift;
 use App\Models\Termination;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -66,8 +67,9 @@ class EmployeeController extends Controller
             $designations     = Designation::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
             $employees        = User::where('created_by', Auth::user()->creatorId())->get();
             $employeesId      = Auth::user()->employeeIdFormat($this->employeeNumber());
+            $shifts           = Shift::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
 
-            return view('employee.create', compact('employees', 'employeesId', 'departments', 'designations', 'documents', 'branches', 'company_settings'));
+            return view('employee.create', compact('employees', 'employeesId', 'departments', 'designations', 'documents', 'branches', 'company_settings', 'shifts'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -88,6 +90,7 @@ class EmployeeController extends Controller
                 'branch_id' => 'required',
                 'department_id' => 'required',
                 'designation_id' => 'required',
+                'shift_id' => 'required',
                 'document.*' => 'required',
             ];
             // $rules['biometric_emp_id'] = [
@@ -185,6 +188,7 @@ class EmployeeController extends Controller
                     'employee_id' => $this->employeeNumber(),
                     // 'biometric_emp_id' => !empty($request['biometric_emp_id']) ? $request['biometric_emp_id'] : '',
                     'branch_id' => $request['branch_id'],
+                    'shift_id' => $request['shift_id'],
                     'department_id' => $request['department_id'],
                     'designation_id' => $request['designation_id'],
                     'company_doj' => $request['company_doj'],
@@ -270,8 +274,9 @@ class EmployeeController extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $employee     = Employee::find($id);
             $employeesId  = \Auth::user()->employeeIdFormat($employee->employee_id);
+            $shifts           = Shift::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
 
-            return view('employee.edit', compact('employee', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
+            return view('employee.edit', compact('employee', 'employeesId', 'branches', 'departments', 'designations', 'documents', 'shifts'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -440,7 +445,7 @@ class EmployeeController extends Controller
             $branches     = Branch::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $departments  = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $employee = Employee::where('id', '=', $empId)->where('created_by', \Auth::user()->creatorId())->first();
+            $employee = Employee::where('id', '=', $empId)->with('shift')->where('created_by', \Auth::user()->creatorId())->first();
             // $employee     = Employee::find($empId);
             $employeesId  = \Auth::user()->employeeIdFormat($employee->employee_id);
             $empId        = Crypt::decrypt($id);

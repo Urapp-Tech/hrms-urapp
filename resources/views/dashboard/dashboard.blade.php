@@ -5,7 +5,7 @@
 @endsection
 @php
     $setting = App\Models\Utility::settings();
-    
+
 @endphp
 @section('content')
     <div class="row">
@@ -56,8 +56,20 @@
                         <h5>{{ __('Mark Attandance') }}</h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted pb-0-5">
-                            {{ __('My Office Time: ' . $officeTime['startTime'] . ' to ' . $officeTime['endTime']) }}</p>
+                        @if ($shift)
+                            <p class="text-muted pb-0-5">
+                                {{ __(
+                                    'My Office Time: ' .
+                                        \Carbon\Carbon::createFromFormat('H:i:s', $shift?->start_time)->format('h:i A') .
+                                        ' to ' .
+                                        \Carbon\Carbon::createFromFormat('H:i:s', $shift?->end_time)->format('h:i A'),
+                                ) }}
+                            </p>
+                        @else
+                            <p class="text-muted pb-0-5">
+                                {{ __('My Office Time: ' . $officeTime['startTime'] . ' to ' . $officeTime['endTime']) }}
+                            </p>
+                        @endif
                         <div class="row">
                             <div class="col-md-6 float-right border-right">
                                 {{ Form::open(['url' => 'attendanceemployee/attendance', 'method' => 'post']) }}
@@ -612,7 +624,7 @@
         <script>
             (function() {
                 var options = {
-                    series: [{{ round($storage_limit,2) }}],
+                    series: [{{ round($storage_limit, 2) }}],
                     chart: {
                         height: 350,
                         type: 'radialBar',

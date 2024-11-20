@@ -110,6 +110,7 @@
                                 'Report',
                                 'Performance Type',
                                 'Zoom meeting',
+                                'Shift',
                             ];
                             if (Auth::user()->type == 'super admin') {
                                 $modules[] = 'Language';

@@ -34,6 +34,7 @@ class Employee extends Model
         'account_type',
         'salary',
         'created_by',
+        'shift_id',
     ];
 
     public function documents()
@@ -50,7 +51,7 @@ class Employee extends Model
     {
         return $this->hasOne('App\Models\AccountList', 'id', 'account_type')->pluck('account_name')->first();
     }
- 
+
     public function get_net_salary()
     {
         $allowances      = Allowance::where('employee_id', '=', $this->id)->get();
@@ -89,7 +90,7 @@ class Employee extends Model
             } else {
                 $total_loan = $loan->amount + $total_loan;
             }
-           
+
         }
 
         //Saturation Deduction
@@ -290,5 +291,8 @@ class Employee extends Model
         } else {
             return $employee->salary;
         }
+    }
+    public  function shift() {
+        return $this->belongsTo(Shift::class, 'shift_id');
     }
 }

@@ -181,6 +181,20 @@
                                     </div>
                                 </div>
 
+                                <div class="col-md-6">
+                                    <div class="info text-sm">
+                                        <strong class="font-bold">{{ __('Employee Shift') }} :</strong>
+                                        <span>{{ !empty($employee->shift)
+                                            ? $employee->shift?->name .
+                                                ' (' .
+                                                \Carbon\Carbon::createFromFormat('H:i:s', $employee->shift?->start_time)->format('h:i A') .
+                                                ' - ' .
+                                                \Carbon\Carbon::createFromFormat('H:i:s', $employee->shift?->end_time)->format('h:i A') .
+                                                ') '
+                                            : '' }}</span>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>

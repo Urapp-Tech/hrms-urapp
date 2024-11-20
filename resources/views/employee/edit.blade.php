@@ -119,6 +119,10 @@
                                                 'required' => 'required',
                                             ]) !!}
                                         </div>
+                                        <div class="form-group col-md-6">
+                                            {{ Form::label('shift_id', __('Select Employee Shift'), ['class' => 'form-label']) }}<x-required></x-required>
+                                            {{ Form::select('shift_id', $shifts, null, ['class' => 'form-control', 'id' => 'shift_id', 'required' => 'required', 'placeholder' => __('Select Employee Shift')]) }}
+                                        </div>
 
                                     </div>
                                 </div>
