@@ -72,6 +72,13 @@
     </script>
 @endpush
 @section('action-button')
+    @can('Create Attendance')
+        <a href="#" data-url="{{ route('attendanceemployee.create') }}" data-ajax-popup="true"
+            data-title="{{ __('Create New Attendance') }}" data-bs-toggle="tooltip" title="" data-size="lg"
+            class="btn btn-sm btn-primary" data-bs-original-title="{{ __('Create') }}">
+            <i class="ti ti-plus"></i>
+        </a>
+    @endcan
 @endsection
 @section('content')
     @if (session('status'))

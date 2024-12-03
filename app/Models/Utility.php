@@ -169,6 +169,7 @@ class Utility extends Model
             'username' => '',
             'user_password' => '',
             'auth_token' => '',
+            'company_grace_time' => '',
         ];
 
         foreach ($data as $row) {
@@ -816,7 +817,7 @@ class Utility extends Model
 
             '{contract_number}',
             '{contract_company_name}',
-            
+
             '{company_name}',
         ];
         $arrValue    = [
@@ -907,7 +908,7 @@ class Utility extends Model
 
             'contract_number' => '-',
             'contract_company_name' => '-',
-            
+
             'company_name' => '-',
         ];
 

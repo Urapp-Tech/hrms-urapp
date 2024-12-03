@@ -923,6 +923,21 @@
                                                 @enderror
                                             </div>
                                         </div>
+
+                                    </div>
+                                    <div class="col-md-12">
+                                        <div class="row">
+
+                                            <div class="form-group col-md-4">
+                                                {{ Form::label('company_grace_time', __('Company Grace Time'), ['class' => 'col-form-label']) }}
+                                                {{ Form::text('company_grace_time', null, ['class' => 'form-control durationpicker_format', 'placeholder' => 'HH:MM:SS']) }}
+                                                @error('company_grace_time')
+                                                    <span class="invalid-company_grace_time" role="alert">
+                                                        <small class="text-danger">{{ $message }}</small>
+                                                    </span>
+                                                @enderror
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div class="form-group col-md-6">

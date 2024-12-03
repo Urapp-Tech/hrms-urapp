@@ -382,6 +382,10 @@ class SettingsController extends Controller
                     'company_start_time' => 'required',
                     'company_end_time' => 'required',
                     'timezone' => 'required',
+                    'company_grace_time' => [
+                        'required',
+                        'regex:/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/',
+                    ],
                     // 'company_email' => 'required',
                     // 'company_email_from_name' => 'required|string',
                 ]

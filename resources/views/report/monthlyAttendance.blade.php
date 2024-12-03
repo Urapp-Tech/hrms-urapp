@@ -320,6 +320,8 @@
                                                     <i class="badge bg-success p-2  rounded">{{ __('P') }}</i>
                                                 @elseif($status == 'A')
                                                     <i class="badge bg-danger p-2  rounded">{{ __('A') }}</i>
+                                                @elseif($status == 'L')
+                                                    <i class="badge bg-warning p-2  rounded">{{ __('L') }}</i>
                                                 @endif
                                             </td>
                                         @endforeach

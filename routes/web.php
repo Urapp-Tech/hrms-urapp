@@ -1223,6 +1223,20 @@ Route::group(['middleware' => ['verified']], function () {
         ]
     );
 
+    Route::get('report/monthly/attendance/summary', [ReportController::class, 'exportAttendance'])->name('report.monthly.attendance.v2')->middleware(
+        [
+            'auth',
+            'XSS',
+        ]
+    );
+
+    Route::post('report/monthly/attendance/summary/export', [ReportController::class, 'exportMonthlyAttendance'])->name('report.monthly.attendance.v2.export')->middleware(
+        [
+            'auth',
+            'XSS',
+        ]
+    );
+
     Route::post('monthly/getdepartment', [ReportController::class, 'getdepartment'])->name('monthly.getdepartment')->middleware(
         [
             'auth',

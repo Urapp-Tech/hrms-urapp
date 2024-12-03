@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Exports\accountstatementExport;
+use App\Exports\EmployeeAttendanceSheet;
 use App\Exports\LeaveExport;
 use App\Exports\LeaveReportExport;
+use App\Exports\MultipleEmployeeAttendanceExport;
 use App\Exports\PayrollExport;
 use App\Exports\TimesheetExport;
 use App\Exports\TimesheetReportExport;
@@ -18,9 +20,13 @@ use App\Models\Expense;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\PaySlip;
+use App\Models\Shift;
 use App\Models\TimeSheet;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Models\Utility;
 
 class ReportController extends Controller
 {
@@ -528,7 +534,9 @@ class ReportController extends Controller
                 $data['employees'] = !empty(Employee::find($request->employees)) ? Employee::find($request->employees)->name : '';
             }
 
-            $employees = $employees->get()->pluck('name', 'id');
+            $employeesCollection = $employees->get();
+            $employees = $employeesCollection->pluck('name', 'id');
+
 
             if (!empty($request->month)) {
                 $currentdate = strtotime($request->month);
@@ -540,7 +548,7 @@ class ReportController extends Controller
                 $year     = date('Y');
                 $curMonth = date('M-Y', strtotime($year . '-' . $month));
             }
-
+            $leaves = Leave::whereIn('employee_id', $employeesCollection->pluck('id'))->whereMonth('start_date',$month)->get();
 
             //            $num_of_days = cal_days_in_month(CAL_GREGORIAN, $month, $year);
             $num_of_days = date('t', mktime(0, 0, 0, $month, 1, $year));
@@ -556,7 +564,8 @@ class ReportController extends Controller
 
                 foreach ($dates as $date) {
                     $dateFormat = $year . '-' . $month . '-' . $date;
-
+                    $employee_on_leave = $leaves->where('employee_id', $id)->where('start_date', '>=', $dateFormat)->where('end_date', '=<', $dateFormat)->where('status', 'Approved');
+                    // dd($employee_on_leave, $id, $date);
                     if ($dateFormat <= date('Y-m-d')) {
                         $employeeAttendance = AttendanceEmployee::where('employee_id', $id)->where('date', $dateFormat)->first();
 
@@ -578,6 +587,9 @@ class ReportController extends Controller
                                 $lateHours += date('h', strtotime($employeeAttendance->late));
                                 $lateMins  += date('i', strtotime($employeeAttendance->late));
                             }
+                        } elseif (!empty($employee_on_leave) && $employee_on_leave->count() > 0) {
+                            $attendanceStatus[$date] = 'L';
+                            $totalLeave              += 1;
                         } elseif (!empty($employeeAttendance) && $employeeAttendance->status == 'Leave') {
                             $attendanceStatus[$date] = 'A';
                             $totalLeave              += 1;
@@ -828,4 +840,272 @@ class ReportController extends Controller
 
         return response()->json($employees);
     }
+
+    public function exportAttendance(Request $request) {
+        if (\Auth::user()->can('Manage Report')) {
+
+            $branch = Branch::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $branch->prepend('All', '');
+
+            $department = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $department->prepend('All', '');
+            return view('report.attendanceTimesheet', compact( 'branch', 'department'));
+
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+    public function exportMonthlyAttendance(Request $request)
+    {
+        if (\Auth::user()->can('Manage Report')) {
+            // Fetch employees
+            $employees = Employee::where('created_by', \Auth::user()->creatorId());
+
+            if (!empty($request->branch)) {
+                $employees->where('branch_id', $request->branch);
+            }
+
+            if (!empty($request->department)) {
+                $employees->where('department_id', $request->department);
+            }
+
+            $employees = $employees->get();
+
+            if (!empty($request->month)) {
+                $currentdate = strtotime($request->month);
+                $month       = date('m', $currentdate);
+                $year        = date('Y', $currentdate);
+            } else {
+                $month = date('m');
+                // $month = 11;
+                $year  = date('Y');
+            }
+
+            // Grace period (in seconds, 30 minutes)
+            $gracePeriod = Utility::getValByName('company_grace_time');
+            if ($gracePeriod == '' ) {
+                $gracePeriod = '00:00:00';
+            }
+
+            // Prepare data for each employee
+            $attendanceSheets = [];
+            $leaves = Leave::whereIn('employee_id', $employees->pluck('id'))->whereMonth('start_date',$month)->get();
+
+            foreach ($employees as $employee) {
+                $shift = Shift::find($employee->shift_id);
+                if (!$shift) {
+                    continue; // Skip if shift not found
+                }
+
+                $shiftStartTime = $shift->start_time;
+                $shiftEndTime = $shift->end_time;
+                $isNightShift = strtotime($shiftStartTime) > strtotime($shiftEndTime);
+
+                $attendances = AttendanceEmployee::where('employee_id', $employee->id)
+                    ->whereMonth('date', $month)
+                    ->whereYear('date', $year)
+                    ->get();
+
+                $attendanceData = [];
+                $num_of_days = date('t', mktime(0, 0, 0, $month, 1, $year));
+
+                $totalLate = $totalShort = $totalOvertime = $totalHalfDays = $totalAbsent = $totalWorkingHours = 0;
+
+                for ($day = 1; $day <= $num_of_days; $day++) {
+                    $date = $year . '-' . $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+                    $attendance = $attendances->where('date', $date)->first();
+                    $metrics = [
+                        'late' => '0:00:00',
+                        'early_leaving' => '0:00:00',
+                        'overtime' => '0:00:00',
+                    ];
+                    $status = 'Present';
+                    $late = $earlyLeaving = $overtime = '00:00:00';
+                    $employee_on_leave = $leaves->where('employee_id', $employee->id)->where('start_date', '>=', $date)->where('end_date', '=<', $date)->where('status', 'Approved');
+
+                    if ($employee_on_leave && $employee_on_leave->count() > 0) {
+                        $status = 'Leave';
+                    }
+                    else if (empty($attendance)) {
+                        // Check if the day is a weekend (Saturday or Sunday)
+                        $dayOfWeek = date('w', strtotime($date));
+                        if ($dayOfWeek == 0 || $dayOfWeek == 6) {
+                            $status = 'Holiday';
+                        } else if (  !empty($employee_on_leave) && $employee_on_leave->count() > 0 ) {
+                            $status = 'Leave';
+                        }
+                         else {
+                            $status = 'Absent';
+                            $totalAbsent++;
+                        }
+                    } else {
+
+                        $metrics = $this->calculateAttendanceMetrics($attendance, $shift, $gracePeriod );
+                        $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' .  $attendance->clock_out));
+
+                        if (strtotime( $attendance->clock_out) < strtotime($attendance->clock_in)) {
+                            $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' .  $attendance->clock_out));
+                        }
+
+                        // Calculate late
+                        $clockInTime = strtotime($attendance->clock_in);
+                        $clockOutTime = strtotime($attendance->clock_out);
+
+                        // Calculate overtime
+                        $overtimeSeconds = strtotime($metrics['overtime']) ;
+                        if(!(in_array($metrics['overtime'], ['00:00:00', '0:00:00']) || strtotime($metrics['overtime']) == 0)) {
+                            $status .= $status ? ', Overtime' : 'Overtime';
+                            $totalShortSeconds = !in_array($metrics['early_leaving'], ['00:00:00', '0:00:00']) ? $this->convertTimeToSeconds($metrics['early_leaving']) : 0;
+                            $totalOverTimeSeconds = $this->convertTimeToSeconds($metrics['overtime']);
+                            if ($totalOverTimeSeconds > $totalShortSeconds) {
+                                $actualOverTimeSeconds = $totalOverTimeSeconds - $totalShortSeconds;
+                                $metrics['overtime'] = gmdate('H:i:s', $actualOverTimeSeconds);
+                                $totalOvertime = $this->addTimes($metrics['overtime'], $totalOvertime == 0 ? '00:00:00' : $totalOvertime);
+                            }
+
+                        }
+
+                        // Calculate half day
+                        if(!(in_array($metrics['early_leaving'], ['00:00:00', '0:00:00']) || strtotime($metrics['early_leaving']) == 0)) {
+                            $totalShortSeconds = $this->convertTimeToSeconds($metrics['early_leaving']);
+                            if ($totalShortSeconds >  1800 && $totalShortSeconds <= 10800 ) {
+                                $status .= $status ? ', Half Day' : 'Half Day';
+                                $totalHalfDays++;
+                            }
+                            $totalShort += $totalShortSeconds;
+                        }
+
+
+                        if(!(in_array($metrics['late'], ['00:00:00', '0:00:00']) || strtotime($metrics['late']) == 0)) {
+                            $totalLate += 1;
+                        }
+                    }
+
+                    $attendanceData[] = [
+                        'Date' => $date,
+                        'Time In' => !empty($attendance) ? date('h:i A', strtotime($attendance->clock_in)) : 'N/A',
+                        'Time Out' => !empty($attendance) ? date('h:i A', strtotime($attendance->clock_out)) : 'N/A',
+                        'Late' => $metrics['late'],
+                        'Short' => $metrics['early_leaving'],
+                        'Overtime' => $metrics['overtime'],
+                        'Status' => $status,
+                    ];
+                }
+
+
+                // Add summary row
+                $attendanceData[] = [
+                    'Date' => 'Total',
+                    'Time In' => '',
+                    'Time Out' => '',
+                    'Late' => $totalLate,
+                    'Short' => gmdate('H:i:s', $totalShort) ,
+                    'Overtime' => $totalOvertime,
+                    'Status' => '',
+                    'Total Half Days' => $totalHalfDays,
+                    'Total Absent' => $totalAbsent
+                ];
+
+                $attendanceSheets[] = new EmployeeAttendanceSheet($employee->name, $request->month, $attendanceData);
+            }
+
+            // Export to Excel
+            return Excel::download(new MultipleEmployeeAttendanceExport($attendanceSheets), 'Monthly_Attendance_Report.xlsx');
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+
+    function calculateAttendanceMetrics($attendance, $shift, $gracePeriod = '00:30:00')
+    {
+        $shiftStartTime = $shift->start_time;
+        $shiftEndTime = $shift->end_time;
+        $isNightShift = strtotime($shiftStartTime) > strtotime($shiftEndTime);
+
+        $clockIn = $attendance->clock_in;
+        $clockOut = $attendance->clock_out;
+        $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockOut));
+
+        if (strtotime($clockOut) < strtotime($clockIn)) {
+            $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' . $clockOut));
+        }
+
+        $shiftEndDateTime = $isNightShift
+            ? date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' . $shiftEndTime))
+            : date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $shiftEndTime));
+
+        $late = $this->calculateLate($clockIn, $shiftStartTime, $gracePeriod);
+        $overtime = $this->calculateOvertime($clockOutDateTime, $shiftEndDateTime);
+        $earlyLeaving = $this->calculateEarlyLeaving($clockOutDateTime, $shiftEndDateTime);
+
+        if ($late != '00:00:00' && $overtime != '' && strtotime($overtime) > strtotime($late)) {
+            $overtime = strtotime($overtime) - strtotime($late);
+            $overtime = gmdate('H:i:s', $overtime);
+        }
+
+        return [
+            'late' => $late,
+            'early_leaving' => $earlyLeaving,
+            'overtime' => $overtime,
+        ];
+    }
+
+    function calculateLate($clockIn, $shiftStartTime, $gracePeriod)
+    {
+        list($graceHours, $graceMinutes) = explode(':', $gracePeriod);
+        $graceSeconds = ($graceHours * 3600) + ($graceMinutes * 60);
+
+        $lateSeconds = strtotime($clockIn) - strtotime($shiftStartTime);
+
+        if ($lateSeconds > $graceSeconds) {
+            return gmdate('H:i:s', $lateSeconds);
+        }
+
+        return '00:00:00';
+    }
+
+    function calculateEarlyLeaving($clockOut, $shiftEndTime)
+    {
+        $endTime = strtotime($shiftEndTime);
+        $earlyLeavingSeconds = $endTime - strtotime($clockOut);
+        return $earlyLeavingSeconds > 0 ? gmdate('H:i:s', $earlyLeavingSeconds) : '00:00:00';
+    }
+
+    function calculateOvertime($clockOut, $shiftEndTime)
+    {
+        $endTime = strtotime($shiftEndTime);
+        $overtimeSeconds = strtotime($clockOut) - $endTime;
+        return $overtimeSeconds > 0 ? gmdate('H:i:s', $overtimeSeconds) : '00:00:00';
+    }
+
+    function addTimes(string $time1, string $time2): string
+    {
+        // Convert time strings to seconds
+        list($hours1, $minutes1, $seconds1) = explode(':', $time1);
+        list($hours2, $minutes2, $seconds2) = explode(':', $time2);
+
+        // Convert both times to total seconds
+        $totalSeconds1 = ($hours1 * 3600) + ($minutes1 * 60) + $seconds1;
+        $totalSeconds2 = ($hours2 * 3600) + ($minutes2 * 60) + $seconds2;
+
+        // Add the seconds together
+        $totalSeconds = $totalSeconds1 + $totalSeconds2;
+
+        // Convert total seconds back to HH:MM:SS format
+        $hours = floor($totalSeconds / 3600);
+        $minutes = floor(($totalSeconds % 3600) / 60);
+        $seconds = $totalSeconds % 60;
+
+        // Format the result as HH:MM:SS
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+    }
+
+    function convertTimeToSeconds( string $time) {
+        list($hours, $minutes, $seconds) = explode(':', $time);
+        $totalSeconds = ($hours * 3600) + ($minutes * 60) + $seconds;
+        return $totalSeconds;
+    }
+
 }

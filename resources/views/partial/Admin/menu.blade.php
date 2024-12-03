@@ -66,6 +66,11 @@
 
                                         <li class="dash-item">
                                             <a class="dash-link"
+                                                href="{{ route('report.monthly.attendance.v2') }}">{{ __('Export Attendance Summary') }}</a>
+                                        </li>
+
+                                        <li class="dash-item">
+                                            <a class="dash-link"
                                                 href="{{ route('report.leave') }}">{{ __('Leave') }}</a>
                                         </li>
 

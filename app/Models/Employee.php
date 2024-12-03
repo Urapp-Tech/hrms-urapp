@@ -295,4 +295,8 @@ class Employee extends Model
     public  function shift() {
         return $this->belongsTo(Shift::class, 'shift_id');
     }
+
+    public function leaves() {
+        return $this->hasMany(Leave::class, 'employee_id');
+    }
 }
