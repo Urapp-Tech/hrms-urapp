@@ -37,7 +37,7 @@ class EmployeeAttendanceSheet implements FromCollection, WithTitle, WithHeadings
     public function headings(): array
     {
         return [
-            'Date', 'Time In', 'Time Out', 'Late', 'Short', 'Overtime', 'Status', 'Total Half Days', 'Total Absent'
+            'Date', 'Time In', 'Time Out', 'Late', 'Short','Working Hours' , 'Overtime', 'Status', 'Total Half Days', 'Total Absent'
         ];
     }
 
@@ -57,10 +57,11 @@ class EmployeeAttendanceSheet implements FromCollection, WithTitle, WithHeadings
             'C' => 12,
             'D' => 10,
             'E' => 10,
-            'F' => 12,
+            'F' => 20,
             'G' => 20,
             'H' => 15,
             'I' => 15,
+            'J' => 15,
         ];
     }
 }

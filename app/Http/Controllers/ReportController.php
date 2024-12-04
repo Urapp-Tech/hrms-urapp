@@ -927,6 +927,7 @@ class ReportController extends Controller
                     $status = 'Present';
                     $late = $earlyLeaving = $overtime = '00:00:00';
                     $employee_on_leave = $leaves->where('employee_id', $employee->id)->where('start_date', '>=', $date)->where('end_date', '=<', $date)->where('status', 'Approved');
+                    $working = 0;
 
                     if ($employee_on_leave && $employee_on_leave->count() > 0) {
                         $status = 'Leave';
@@ -980,6 +981,13 @@ class ReportController extends Controller
                             $totalShort += $totalShortSeconds;
                         }
 
+                        // Calculate Working Hours
+                        if ( strtotime($clockInTime) <  strtotime($clockOutDateTime)  ) {
+                            $working = strtotime($clockOutDateTime) - $clockInTime;
+                            $totalWorkingHours = $this->addTimes( gmdate('H:i:s', $working),  $totalWorkingHours == 0 ? '00:00:00' : $totalWorkingHours);
+                        }
+
+
 
                         if(!(in_array($metrics['late'], ['00:00:00', '0:00:00']) || strtotime($metrics['late']) == 0)) {
                             $totalLate += 1;
@@ -992,6 +1000,7 @@ class ReportController extends Controller
                         'Time Out' => !empty($attendance) ? date('h:i A', strtotime($attendance->clock_out)) : 'N/A',
                         'Late' => $metrics['late'],
                         'Short' => $metrics['early_leaving'],
+                        'Working Hours' => gmdate('H:i:s', $working) ,
                         'Overtime' => $metrics['overtime'],
                         'Status' => $status,
                     ];
@@ -1005,6 +1014,7 @@ class ReportController extends Controller
                     'Time Out' => '',
                     'Late' => $totalLate,
                     'Short' => gmdate('H:i:s', $totalShort) ,
+                    'Working Hours' => $totalWorkingHours,
                     'Overtime' => $totalOvertime,
                     'Status' => '',
                     'Total Half Days' => $totalHalfDays,
