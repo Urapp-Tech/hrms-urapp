@@ -264,12 +264,12 @@
                                         <a class="dash-link"
                                             href="{{ route('attendanceemployee.index') }}">{{ __('Marked Attendance') }}</a>
                                     </li>
-                                    @can('Create Attendance')
+                                    {{-- @can('Create Attendance')
                                         <li class="dash-item">
                                             <a class="dash-link"
                                                 href="{{ route('attendanceemployee.bulkattendance') }}">{{ __('Bulk Attendance') }}</a>
                                         </li>
-                                    @endcan
+                                    @endcan --}}
                                 </ul>
                             </li>
                         @endcan

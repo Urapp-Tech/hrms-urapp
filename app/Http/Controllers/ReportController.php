@@ -564,6 +564,7 @@ class ReportController extends Controller
 
                 foreach ($dates as $date) {
                     $dateFormat = $year . '-' . $month . '-' . $date;
+                    $dayOfWeek = date('w', strtotime($dateFormat));
                     $employee_on_leave = $leaves->where('employee_id', $id)->where('start_date', '>=', $dateFormat)->where('end_date', '=<', $dateFormat)->where('status', 'Approved');
                     // dd($employee_on_leave, $id, $date);
                     if ($dateFormat <= date('Y-m-d')) {
@@ -593,6 +594,8 @@ class ReportController extends Controller
                         } elseif (!empty($employeeAttendance) && $employeeAttendance->status == 'Leave') {
                             $attendanceStatus[$date] = 'A';
                             $totalLeave              += 1;
+                        } else if (empty($employeeAttendance) && ($dayOfWeek != 0 && $dayOfWeek != 6) ) {
+                            $attendanceStatus[$date] = 'A';
                         } else {
                             $attendanceStatus[$date] = '';
                         }
@@ -905,6 +908,7 @@ class ReportController extends Controller
                 $attendances = AttendanceEmployee::where('employee_id', $employee->id)
                     ->whereMonth('date', $month)
                     ->whereYear('date', $year)
+                    ->where('status', '<>', 'Leave')
                     ->get();
 
                 $attendanceData = [];
