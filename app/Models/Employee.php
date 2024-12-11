@@ -35,6 +35,10 @@ class Employee extends Model
         'salary',
         'created_by',
         'shift_id',
+        'is_fingerprint_enrolled',
+        'machine_number',
+        'fingerprint_index',
+        'fingerprint_data',
     ];
 
     public function documents()

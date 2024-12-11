@@ -40,7 +40,7 @@ class Utility extends Model
                 $data = DB::table('settings')->where('created_by', '=', 1)->get();
             }
         }
-        if (\Auth::check()) {
+        else if (\Auth::check()) {
 
             $data = $data->where('created_by', '=', \Auth::user()->creatorId())->get();
             if (count($data) == 0) {
