@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceEmployee;
+use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\Shift;
+use App\Models\Utility;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,28 +25,55 @@ class AttendanceController extends Controller
         ]);
 
         try {
+            // Grace period (in seconds, 30 minutes)
+            $settings = Utility::fetchSettings($companyId);
+            $gracePeriod = $this->getValByName('company_grace_time', $settings);
+            $gracePeriod = $gracePeriod ?: '00:00:00';
+
             foreach ($validated as $attendance) {
                 // Get employee by enrollment number and company
                 $employee = $this->getEmployeeByEnrollmentNumberAndCompany($attendance['enrollmentNumber'], $companyId);
 
-                // Get employee shift details
+                // Log the attendance status
+                AttendanceLog::create([
+                    'employee_id' => $employee->id,
+                    'status' => $this->mapStatusToAttendance($attendance['status']),
+                    'timestamp' => $attendance['time'],
+                ]);
+
+                // Fetch shift details
                 $shift = Shift::find($employee->shift_id);
                 if (!$shift) {
                     throw new \Exception("Shift not assigned for employee ID {$employee->id}.");
                 }
 
                 $shiftStartTime = $shift->start_time;
-                $shiftEndTime = $shift->end_time;
+                $shiftEndTime = $shift->end_time; // 01:00:00
                 $isNightShift = strtotime($shiftStartTime) > strtotime($shiftEndTime);
 
-                // Calculate the shift's start and end date-times
-                $attendanceDate = date('Y-m-d', strtotime($attendance['time']));
-                $shiftStartDateTime = date('Y-m-d H:i:s', strtotime($attendance['time'] . ' ' . $shiftStartTime));
-                $shiftEndDateTime = $isNightShift
-                    ? date('Y-m-d H:i:s', strtotime("+1 day " . $attendanceDate . ' ' . $shiftEndTime))
-                    : date('Y-m-d H:i:s', strtotime($attendanceDate . ' ' . $shiftEndTime));
+                $shiftStartDate = Carbon::parse($attendance['time'])->format('Y-m-d'); // 2024-12-19
+                $clockOutTimestamp = Carbon::parse($attendance['time']); // 2024-12-19 20:00:00
 
-                // Attendance data initialization
+                // Determine the correct attendance date
+                $existingShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                    ->where('date', $shiftStartDate)
+                    ->first();
+                $prevShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                    ->where('date', Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'))
+                    ->first();
+                if (!$existingShiftAttendance && $isNightShift && in_array($this->mapStatusToAttendance($attendance['status']), ['DUTY_OFF']) && $prevShiftAttendance) {
+                    $attendanceDate = Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d');
+                }
+                else {
+                    $attendanceDate = $shiftStartDate;
+                }
+
+
+                $shiftEndDateTime = Carbon::parse($attendanceDate . ' ' . $shiftEndTime);
+                if ($shiftEndDateTime->lt(Carbon::parse($attendanceDate . ' ' . $shiftStartTime))) {
+                    $shiftEndDateTime->addDay(); // Adjust for night shift
+                }
+
                 $existingAttendance = AttendanceEmployee::where('employee_id', $employee->id)
                     ->where('date', $attendanceDate)
                     ->first();
@@ -53,36 +83,37 @@ class AttendanceController extends Controller
                     'status' => 'Present',
                 ];
 
-                if ($this->mapStatusToAttendance($attendance['status']) == 'DUTY_ON') {
-                    // Clock-In (DUTY_ON)
-                    $data['clock_in'] = date('H:i:s', strtotime($attendance['time']));
-                } elseif ($this->mapStatusToAttendance($attendance['status']) == 'DUTY_OFF') {
-                    // Clock-Out (DUTY_OFF)
+                // Map clock-in and clock-out based on status
+                if (in_array($this->mapStatusToAttendance($attendance['status']), ['DUTY_ON'])) {
+                    $data['clock_in'] = Carbon::parse($attendance['time'])->format('H:i:s');
+                } elseif (in_array($this->mapStatusToAttendance($attendance['status']), ['DUTY_OFF'])) {
                     if ($existingAttendance) {
                         $data['clock_out'] = date('H:i:s', strtotime($attendance['time']));
 
                         // Handle cross-day shifts if the clock-out time is less than clock-in time
-                        $clockInTime = strtotime($existingAttendance->clock_in);
-                        $clockOutTime = strtotime($data['clock_out']);
+                        $clockInTime = strtotime( $existingAttendance->date .' '. $existingAttendance->clock_in);
+                        $clockOutTime = strtotime($existingAttendance->date .' '.  $data['clock_out']);
                         if ($clockOutTime < $clockInTime) {
                             $clockOutTime = strtotime("+1 day " . $data['clock_out']);
                         }
-                        // dd($clockOutTime, gmdate('H:i:s', $clockOutTime), $shiftEndDateTime,$attendanceDate );
+
                         // Calculate late, early leaving, and overtime
-                        $data['late'] = $this->calculateLate($existingAttendance->clock_in, $shiftStartTime, '00:15:00');
+                        $data['late'] = $this->calculateLate($existingAttendance->clock_in, $shiftStartTime, $gracePeriod);
                         $data['early_leaving'] = $this->calculateEarlyLeaving($clockOutTime, strtotime($shiftEndDateTime));
                         $data['overtime'] = $this->calculateOvertime($clockOutTime, strtotime($shiftEndDateTime));
                     }
                 }
 
-                // Store attendance data
-                AttendanceEmployee::updateOrCreate(
-                    [
-                        'employee_id' => $employee->id,
-                        'date' => $attendanceDate,
-                    ],
-                    $data
-                );
+                if (in_array($this->mapStatusToAttendance($attendance['status']), ['DUTY_ON', 'DUTY_OFF'])) {
+                    // Update or create attendance entry
+                    AttendanceEmployee::updateOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'date' => $attendanceDate,
+                        ],
+                        $data
+                    );
+                }
             }
 
             return response()->json([
@@ -168,5 +199,13 @@ class AttendanceController extends Controller
         }
 
         return '00:00:00';
+    }
+
+    public function getValByName($key, $setting)
+    {
+        if (!isset($setting[$key]) || empty($setting[$key])) {
+            $setting[$key] = '';
+        }
+        return $setting[$key];
     }
 }
