@@ -63,6 +63,7 @@ class EmployeeController extends Controller
 
             $employees =  $employees->transform(function ($emp) {
                 $emp->id = $emp->biometric_emp_id ?? 0;
+                $emp->isActive = $emp->isActive ? true : false;
                 unset($emp->biometric_emp_id);
                 if($emp->biometricData) {
                     $biometric = $emp->biometricData;
@@ -156,6 +157,7 @@ class EmployeeController extends Controller
 
             $employees =  $employees->transform(function ($emp) {
                 $emp->id = $emp->biometric_emp_id ?? 0;
+                $emp->isActive = $emp->isActive ? true : false;
                 unset($emp->biometric_emp_id);
                 if($emp->biometricData) {
                     $biometric = $emp->biometricData;
