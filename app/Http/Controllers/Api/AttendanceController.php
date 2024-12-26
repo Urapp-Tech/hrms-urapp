@@ -18,7 +18,7 @@ class AttendanceController extends Controller
     {
         // Validate the request
         $validated = $request->validate([
-            '*.enrollmentNumber' => 'required|exists:employees,id',
+            '*.enrollmentNumber' => 'required|exists:employees,biometric_emp_id',
             '*.machineNumber' => 'required|integer',
             '*.time' => 'required|date_format:Y-m-d\TH:i:s\Z',
             '*.status' => 'required|integer|min:0|max:5',

@@ -13,7 +13,7 @@ class EmployeeController extends Controller
     public function enrollEmployee(Request $request, $companyId)
     {
         $validated = $request->validate([
-            'id' => 'required|exists:employees,id',
+            'id' => 'required|exists:employees,biometric_emp_id',
             'machineNumber' => 'required|integer',
             'fingerprintIndex' => 'required|integer',
             'fingerprintData' => 'required|string',
@@ -100,7 +100,7 @@ class EmployeeController extends Controller
     public function synchronizeEmployees(Request $request, $companyId)
     {
         $validated = $request->validate([
-            '*.id' => 'required|exists:employees,id',
+            '*.id' => 'required|exists:employees,biometric_emp_id',
             '*.enrolled' => 'required|boolean',
             '*.data.machineNumber' => 'nullable|integer',
             '*.data.fingerprintIndex' => 'nullable|integer',
