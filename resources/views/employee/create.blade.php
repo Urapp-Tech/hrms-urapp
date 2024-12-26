@@ -130,14 +130,14 @@
                                         {{ Form::select('designation_id', [], null, ['class' => 'form-control', 'id' => 'designation_id', 'required' => 'required', 'placeholder' => __('Select Designation')]) }}
                                     </div>
 
-                                    {{-- <div class="form-group col-md-6">
-                                        {!! Form::label('biometric_emp_id', __('Employee Code'), ['class' => 'form-label']) !!}<x-required></x-required>
+                                    <div class="form-group col-md-6">
+                                        {!! Form::label('biometric_emp_id', __('Biometric Code'), ['class' => 'form-label']) !!}<x-required></x-required>
                                         {!! Form::text('biometric_emp_id', old('biometric_emp_id'), [
                                             'class' => 'form-control',
-                                            'placeholder' => 'Enter Employee Code',
+                                            'placeholder' => 'Enter Biometric Code',
                                             'required' => 'required',
                                         ]) !!}
-                                    </div> --}}
+                                    </div>
                                     <div class="form-group">
                                         {!! Form::label('company_doj', __('Company Date Of Joining'), ['class' => '  form-label']) !!}<x-required></x-required>
                                         {{ Form::date('company_doj', null, ['class' => 'form-control current_date', 'required' => 'required', 'autocomplete' => 'off', 'placeholder' => 'Select company date of joining']) }}

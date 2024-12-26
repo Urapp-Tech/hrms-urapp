@@ -303,4 +303,8 @@ class Employee extends Model
     public function leaves() {
         return $this->hasMany(Leave::class, 'employee_id');
     }
+
+    public function biometricData() {
+        return $this->hasOne(BiometricData::class, 'employee_id');
+    }
 }

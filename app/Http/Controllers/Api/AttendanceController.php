@@ -150,7 +150,7 @@ class AttendanceController extends Controller
      */
     private function getEmployeeByEnrollmentNumberAndCompany(int $enrollmentNumber, int $companyId): Employee
     {
-        $employee = Employee::where('id', $enrollmentNumber)
+        $employee = Employee::where('biometric_emp_id', $enrollmentNumber)
             ->where('created_by', $companyId)
             ->first();
 

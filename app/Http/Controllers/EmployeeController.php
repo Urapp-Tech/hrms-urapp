@@ -93,12 +93,12 @@ class EmployeeController extends Controller
                 'shift_id' => 'required',
                 'document.*' => 'required',
             ];
-            // $rules['biometric_emp_id'] = [
-            //     'required',
-            //     Rule::unique('employees')->where(function ($query) {
-            //         return $query->where('created_by', Auth::user()->creatorId());
-            //     })
-            // ];
+            $rules['biometric_emp_id'] = [
+                'required',
+                Rule::unique('employees')->where(function ($query) {
+                    return $query->where('created_by', Auth::user()->creatorId());
+                })
+            ];
 
             $validator = \Validator::make(
                 $request->all(),
@@ -296,14 +296,14 @@ class EmployeeController extends Controller
                 'address' => 'required',
             ];
 
-            // if ($request->has('biometric_emp_id') && $employee->biometric_emp_id != $request->biometric_emp_id) {
-            //     $rules['biometric_emp_id'] = [
-            //         'required',
-            //         Rule::unique('employees')->where(function ($query) {
-            //             return $query->where('created_by', Auth::user()->creatorId());
-            //         })
-            //     ];
-            // }
+            if ($request->has('biometric_emp_id') && $employee->biometric_emp_id != $request->biometric_emp_id) {
+                $rules['biometric_emp_id'] = [
+                    'required',
+                    Rule::unique('employees')->where(function ($query) {
+                        return $query->where('created_by', Auth::user()->creatorId());
+                    })
+                ];
+            }
 
             $validator = \Validator::make(
                 $request->all(),

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BiometricData;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
 {
@@ -20,7 +21,7 @@ class EmployeeController extends Controller
 
         try {
             // Find the employee scoped by company (created_by)
-            $employee = Employee::where('id', $validated['id'])
+            $employee = Employee::where('biometric_emp_id', $validated['id'])
                 ->where('created_by', $companyId)
                 ->firstOrFail();
 
@@ -55,9 +56,31 @@ class EmployeeController extends Controller
         try {
             // Fetch employees where is_fingerprint_enrolled is false and created_by matches companyId
             $employees = Employee::where('is_fingerprint_enrolled', false)
+                ->with('biometricData')
                 ->where('created_by', $companyId)
-                ->select('id', 'name', 'email', 'phone', 'is_active')
+                ->select('id', 'name', 'email', 'phone', 'is_active as isActive', 'biometric_emp_id')
                 ->get();
+
+            $employees =  $employees->transform(function ($emp) {
+                $emp->id = $emp->biometric_emp_id ?? 0;
+                unset($emp->biometric_emp_id);
+                if($emp->biometricData) {
+                    $biometric = $emp->biometricData;
+                    unset($emp->biometricData);
+                    $biometricData['id'] = $biometric->id;
+                    $biometricData['machineNumber'] = $biometric->machine_number;
+                    $biometricData['fingerprintIndex'] = $biometric->fingerprint_index;
+                    $biometricData['fingerprintData'] = $biometric->fingerprint_data;
+
+                    $emp->biometricData = $biometricData;
+                }
+                else {
+                    unset($emp->biometricData);
+                    $emp->biometricData = null;
+                }
+
+                return $emp;
+            });
 
             return response()->json([
                 'statusCode' => 200,
@@ -86,7 +109,7 @@ class EmployeeController extends Controller
         try {
             foreach ($validated as $employeeData) {
                 // Ensure employee belongs to the specified company
-                $employee = Employee::where('id', $employeeData['id'])
+                $employee = Employee::where('biometric_emp_id', $employeeData['id'])
                     ->where('created_by', $companyId)
                     ->firstOrFail();
 
@@ -126,9 +149,32 @@ class EmployeeController extends Controller
         try {
             // Fetch employees where is_fingerprint_enrolled is true and created_by matches companyId
             $employees = Employee::where('is_fingerprint_enrolled', true)
+                ->with('biometricData')
                 ->where('created_by', $companyId)
-                ->select('id', 'name', 'email', 'phone', 'is_active')
+                ->select('id', 'name', 'email', 'phone', 'is_active as isActive', 'biometric_emp_id')
                 ->get();
+
+            $employees =  $employees->transform(function ($emp) {
+                $emp->id = $emp->biometric_emp_id ?? 0;
+                unset($emp->biometric_emp_id);
+                if($emp->biometricData) {
+                    $biometric = $emp->biometricData;
+                    unset($emp->biometricData);
+                    $biometricData['id'] = $biometric->id;
+                    $biometricData['machineNumber'] = $biometric->machine_number;
+                    $biometricData['fingerprintIndex'] = $biometric->fingerprint_index;
+                    $biometricData['fingerprintData'] = $biometric->fingerprint_data;
+
+                    $emp->biometricData = $biometricData;
+                }
+                else {
+                    unset($emp->biometricData);
+                    $emp->biometricData = null;
+                }
+
+
+                return $emp;
+            });
 
             return response()->json([
                 'statusCode' => 200,

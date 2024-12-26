@@ -39,6 +39,7 @@
                             <thead>
                                 <tr>
                                     <th>{{ __('Employee ID') }}</th>
+                                    <th>{{ __('Biometric') }}</th>
                                     <th>{{ __('Name') }}</th>
                                     <th>{{ __('Email') }}</th>
                                     <th>{{ __('Branch') }}</th>
@@ -62,6 +63,7 @@
                                                     class="btn btn-outline-primary">{{ \Auth::user()->employeeIdFormat($employee->employee_id) }}</a>
                                             @endcan
                                         </td>
+                                        <td>{{ $employee->biometric_emp_id }}</td>
                                         <td>{{ $employee->name }}</td>
                                         <td>{{ $employee->email }}</td>
                                         <td>
