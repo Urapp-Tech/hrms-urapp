@@ -1857,8 +1857,31 @@ class Utility extends Model
         ];
     }
 
-    public static function AnnualLeaveCycle()
+    public static function AnnualLeaveCycle($employee)
     {
+        if ($employee && $employee->company_doj) {
+            // Get the joining date and the current date
+            $joiningDate = $employee->company_doj; // e.g., '2022-02-01'
+            $currentDate = date('Y-m-d');          // e.g., '2025-01-01'
+
+            // Extract the month and day from the joining date
+            $monthDay = date('m-d', strtotime($joiningDate));
+            $currentYear = date('Y', strtotime($currentDate));
+
+            // Determine the start date of the current leave cycle
+            $joiningYear = date('Y', strtotime($joiningDate));
+            $leaveStartYear = ($currentDate >= "{$currentYear}-{$monthDay}") ? $currentYear : $currentYear - 1;
+            $start_date = "{$leaveStartYear}-{$monthDay}";
+
+            // Calculate the end date of the current leave cycle (1 year minus 1 day from the start date)
+            $end_date = date('Y-m-d', strtotime($start_date . ' +1 year -1 day'));
+
+            return [
+                'start_date' => $start_date,
+                'end_date'   => $end_date,
+            ];
+        }
+
         $start_date = '' . date('Y') . '-01-01';
         $end_date = '' . date('Y') . '-12-31';
         $start_date = date('Y-m-d', strtotime($start_date . ' -1 day'));

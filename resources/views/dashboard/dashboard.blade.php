@@ -51,7 +51,7 @@
                 </div>
             </div>
             <div class="col-xxl-6">
-                <div class="card" style="height: 230px;">
+                <div class="card d-none" style="height: 230px;">
                     <div class="card-header">
                         <h5>{{ __('Mark Attandance') }}</h5>
                     </div>

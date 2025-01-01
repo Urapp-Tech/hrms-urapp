@@ -20,9 +20,9 @@
     if ($lang == 'ar' || $lang == 'he') {
         $SITE_RTL = 'on';
     }
-    elseif($SITE_RTL == 'on') 
+    elseif($SITE_RTL == 'on')
     {
-        $SITE_RTL = 'on';        
+        $SITE_RTL = 'on';
     }
     else {
         $SITE_RTL = 'off';
@@ -141,7 +141,7 @@
         </div>
         <div class="bg-login bg-primary"></div>
         <div class="custom-login-inner">
-            <header class="dash-header">
+            {{-- <header class="dash-header">
                 <nav class="navbar navbar-expand-md default">
                     <div class="container">
                         <div class="navbar-brand">
@@ -163,7 +163,7 @@
                         </div>
                     </div>
                 </nav>
-            </header>
+            </header> --}}
             <main class="custom-wrapper">
                 <div class="custom-row">
                     <div class="card">

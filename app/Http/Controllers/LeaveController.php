@@ -78,8 +78,10 @@ class LeaveController extends Controller
             $startDate = new \DateTime($request->start_date);
             $endDate = new \DateTime($request->end_date);
             $endDate->add(new \DateInterval('P1D'));
+            $employee = Employee::find($request->employee_id);
+
             // $total_leave_days = !empty($startDate->diff($endDate)) ? $startDate->diff($endDate)->days : 0;
-            $date = Utility::AnnualLeaveCycle();
+            $date = Utility::AnnualLeaveCycle($employee);
 
             if (\Auth::user()->type == 'employee') {
                 // Leave day
@@ -200,8 +202,9 @@ class LeaveController extends Controller
                 $startDate = new \DateTime($request->start_date);
                 $endDate = new \DateTime($request->end_date);
                 $endDate->add(new \DateInterval('P1D'));
+                $employee = Employee::find($request->employee_id);
                 // $total_leave_days = !empty($startDate->diff($endDate)) ? $startDate->diff($endDate)->days : 0;
-                $date = Utility::AnnualLeaveCycle();
+                $date = Utility::AnnualLeaveCycle($employee);
 
                 if (\Auth::user()->type == 'employee') {
                     // Leave day
@@ -343,7 +346,9 @@ class LeaveController extends Controller
 
     public function jsoncount(Request $request)
     {
-        $date = Utility::AnnualLeaveCycle();
+        $employee = Employee::find($request->employee_id);
+        $date = Utility::AnnualLeaveCycle($employee);
+
         $leave_counts = LeaveType::select(\DB::raw('COALESCE(SUM(leaves.total_leave_days),0) AS total_leave, leave_types.title, leave_types.days,leave_types.id'))
             ->leftjoin(
                 'leaves',
@@ -351,7 +356,11 @@ class LeaveController extends Controller
                     $join->on('leaves.leave_type_id', '=', 'leave_types.id');
                     $join->where('leaves.employee_id', '=', $request->employee_id);
                     $join->where('leaves.status', '=', 'Approved');
-                    $join->whereBetween('leaves.created_at', [$date['start_date'],$date['end_date']]);
+                    $join->where(function ($query) use ($request, $date) {
+                        $query->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
+                        $query->orWhereBetween('leaves.end_date', [$date['start_date'],$date['end_date']]);
+                    });
+                    // $join->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
                 }
             )->where('leave_types.created_by', '=', \Auth::user()->creatorId())->groupBy('leave_types.id')->get();
         return $leave_counts;
