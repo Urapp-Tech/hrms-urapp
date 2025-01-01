@@ -36,104 +36,157 @@ class SyncAttendanceCheckout extends Command
                 ->orderBy('employee_id')
                 ->orderBy('timestamp')
                 ->get()
-                ->groupBy('employee_id');
+                ->groupBy('employee_id')
+                ->map(function ($groupedByEmployee) {
+                    return $groupedByEmployee->groupBy(function ($item) {
+                        return \Carbon\Carbon::parse($item['timestamp'])->format('Y-m-d');
+                    });
+                });
 
-            foreach ($logs as $employeeId => $logEntries) {
-                $firstDutyInLog = $logEntries->sortBy('timestamp')->filter(function ($log) {
-                    return $log->status === 'DUTY_ON' || $log->status === 'LOCK_IN';
-                })->first();
+            foreach ($logs as $employeeId => $logsByDate) {
 
-                $lastDutyOffLog = $logEntries->sortBy('timestamp')->filter(function ($log) {
-                    return $log->status === 'DUTY_OFF' || $log->status === 'LOCK_OUT';
-                })->last();
+                foreach ($logsByDate as $logEntries) {
+                    # code...
+                    $firstDutyInLog = $logEntries->sortBy('timestamp')->filter(function ($log) {
+                        return $log->status === 'DUTY_ON' || $log->status === 'LOCK_IN';
+                    })->first();
 
-                if ($firstDutyInLog && $lastDutyOffLog) {
-                    $shiftStartDate = Carbon::parse($firstDutyInLog->timestamp)->format('Y-m-d');
-                    $clockOutTimestamp = Carbon::parse($lastDutyOffLog->timestamp);
+                    $lastDutyOffLog = $logEntries->sortBy('timestamp')->filter(function ($log) {
+                        return $log->status === 'DUTY_OFF' || $log->status === 'LOCK_OUT';
+                    })->last();
 
-                    // Fetch the employee's shift details
-                    $employee = Employee::find($employeeId);
-                    $settings = Utility::fetchSettings($employee->created_by);
-                    $gracePeriod = $this->getValByName('company_grace_time', $settings);
-                    $gracePeriod = $gracePeriod ?: '00:00:00';
+                    if ($firstDutyInLog && $lastDutyOffLog) {
+                        $shiftStartDate = Carbon::parse($firstDutyInLog->timestamp)->format('Y-m-d');
+                        $clockOutTimestamp = Carbon::parse($lastDutyOffLog->timestamp);
 
-                    $shift = Shift::find($employee->shift_id);
+                        // Fetch the employee's shift details
+                        $employee = Employee::find($employeeId);
+                        $settings = Utility::fetchSettings($employee->created_by);
+                        $gracePeriod = $this->getValByName('company_grace_time', $settings);
+                        $gracePeriod = $gracePeriod ?: '00:00:00';
 
-                    if (!$shift) {
-                        $this->error("Shift not found for employee ID: $employeeId");
-                        continue;
+                        $shift = Shift::find($employee->shift_id);
+
+                        if (!$shift) {
+                            $this->error("Shift not found for employee ID: $employeeId");
+                            continue;
+                        }
+
+                        $isNightShift = strtotime($shift->start_time) > strtotime($shift->end_time);
+
+
+                        $shiftEndTime = Carbon::parse($shiftStartDate . ' ' . $shift->end_time);
+                        // if ($shiftEndTime->lt(Carbon::parse($shiftStartDate . ' ' . $shift->start_time))) {
+                        //     $shiftEndTime->addDay(); // Handle night shifts
+                        // }
+
+                        // Determine the date for clock_out
+                        $existingShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                        ->where('date', $shiftStartDate)
+                        ->first();
+                        $prevShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                        ->where('date', Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'))
+                        ->first();
+                        $attendanceDate= '';
+                        if (!$existingShiftAttendance && $isNightShift && in_array($lastDutyOffLog->status, ['DUTY_OFF', 'LOCK_OUT']) && $prevShiftAttendance) {
+                            $attendanceDate = Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d');
+                        }
+                        else {
+                            $attendanceDate = $shiftStartDate;
+                        }
+
+                        // $attendanceDate = $clockOutTimestamp->lessThanOrEqualTo($shiftEndTime)
+                        //     ? $shiftStartDate // Same date for normal shifts
+                        //     : Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'); // Previous day for night shifts
+
+                        $attendance = AttendanceEmployee::updateOrCreate(
+                            [
+                                'employee_id' => $employeeId,
+                                'date' => $attendanceDate,
+                            ],
+                            [
+                                'clock_in' => Carbon::parse($firstDutyInLog->timestamp)->format('H:i:s'),
+                                'clock_out' => $clockOutTimestamp->format('H:i:s'),
+                            ]
+                        );
+
+                        $shiftStartDateTime = Carbon::parse($attendance->date . ' ' . $shift->start_time);
+                        $shiftEndDateTime = Carbon::parse($attendance->date . ' ' . $shift->end_time);
+                        if ($shiftEndDateTime->lt($shiftStartDateTime)) {
+                            $shiftEndDateTime->addDay(); // Handle night shifts
+                        }
+
+                        $clockInTime = Carbon::parse( $attendance->date . ' ' . $attendance->clock_in);
+                        $clockOutTime = Carbon::parse($attendance->date . ' ' . $attendance->clock_out);
+                        if($clockOutTime->lt($clockInTime)) {
+                            $clockOutTime->addDay();
+                        }
+
+                        // Calculate late, early leaving, and overtime
+                        $attendance->late = $clockInTime->greaterThan($shiftStartDateTime->addSeconds($this->convertTimeToSeconds($gracePeriod)))
+                            ? $clockInTime->diff($shiftStartDateTime)->format('%H:%I:%S')
+                            : '00:00:00';
+
+                        $attendance->early_leaving = $clockOutTime->lessThan($shiftEndDateTime)
+                            ? $shiftEndDateTime->diff($clockOutTime)->format('%H:%I:%S')
+                            : '00:00:00';
+
+                        $attendance->overtime = $clockOutTime->greaterThan($shiftEndDateTime)
+                            ? $clockOutTime->diff($shiftEndDateTime)->format('%H:%I:%S')
+                            : '00:00:00';
+
+                        $attendance->save();
+                    }
+                    else if($firstDutyInLog) {
+
+                        $shiftStartDate = Carbon::parse($firstDutyInLog->timestamp)->format('Y-m-d');
+
+                        // Fetch the employee's shift details
+                        $employee = Employee::find($employeeId);
+                        $settings = Utility::fetchSettings($employee->created_by);
+                        $gracePeriod = $this->getValByName('company_grace_time', $settings);
+                        $gracePeriod = $gracePeriod ?: '00:00:00';
+
+                        $shift = Shift::find($employee->shift_id);
+
+                        if (!$shift) {
+                            $this->error("Shift not found for employee ID: $employeeId");
+                            continue;
+                        }
+
+                        $isNightShift = strtotime($shift->start_time) > strtotime($shift->end_time);
+
+                        $existingShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                        ->where('date', $shiftStartDate)
+                        ->first();
+                        $prevShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
+                        ->where('date', Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'))
+                        ->first();
+                        $attendanceDate= '';
+                        if (!$existingShiftAttendance && $isNightShift && in_array($lastDutyOffLog->status, ['DUTY_OFF', 'LOCK_OUT']) && $prevShiftAttendance) {
+                            $attendanceDate = Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d');
+                        }
+                        else {
+                            $attendanceDate = $shiftStartDate;
+                        }
+
+                        $attendance = AttendanceEmployee::updateOrCreate(
+                            [
+                                'employee_id' => $employeeId,
+                                'date' => $attendanceDate,
+                            ],
+                            [
+                                'clock_in' => Carbon::parse($firstDutyInLog->timestamp)->format('H:i:s'),
+                            ]
+                        );
+
+
                     }
 
-                    $isNightShift = strtotime($shift->start_time) > strtotime($shift->end_time);
-
-
-                    $shiftEndTime = Carbon::parse($shiftStartDate . ' ' . $shift->end_time);
-                    // if ($shiftEndTime->lt(Carbon::parse($shiftStartDate . ' ' . $shift->start_time))) {
-                    //     $shiftEndTime->addDay(); // Handle night shifts
-                    // }
-
-                    // Determine the date for clock_out
-                    $existingShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
-                    ->where('date', $shiftStartDate)
-                    ->first();
-                    $prevShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
-                    ->where('date', Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'))
-                    ->first();
-                    $attendanceDate= '';
-                    if (!$existingShiftAttendance && $isNightShift && in_array($lastDutyOffLog->status, ['DUTY_OFF', 'LOCK_OUT']) && $prevShiftAttendance) {
-                        $attendanceDate = Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d');
+                    // Mark logs as processed
+                    foreach ($logEntries as $log) {
+                        $log->update(['processed' => true ]);
                     }
-                    else {
-                        $attendanceDate = $shiftStartDate;
-                    }
-
-                    // $attendanceDate = $clockOutTimestamp->lessThanOrEqualTo($shiftEndTime)
-                    //     ? $shiftStartDate // Same date for normal shifts
-                    //     : Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'); // Previous day for night shifts
-
-                    $attendance = AttendanceEmployee::updateOrCreate(
-                        [
-                            'employee_id' => $employeeId,
-                            'date' => $attendanceDate,
-                        ],
-                        [
-                            'clock_in' => Carbon::parse($firstDutyInLog->timestamp)->format('H:i:s'),
-                            'clock_out' => $clockOutTimestamp->format('H:i:s'),
-                        ]
-                    );
-
-                    $shiftStartDateTime = Carbon::parse($attendance->date . ' ' . $shift->start_time);
-                    $shiftEndDateTime = Carbon::parse($attendance->date . ' ' . $shift->end_time);
-                    if ($shiftEndDateTime->lt($shiftStartDateTime)) {
-                        $shiftEndDateTime->addDay(); // Handle night shifts
-                    }
-
-                    $clockInTime = Carbon::parse( $attendance->date . ' ' . $attendance->clock_in);
-                    $clockOutTime = Carbon::parse($attendance->date . ' ' . $attendance->clock_out);
-                    if($clockOutTime->lt($clockInTime)) {
-                        $clockOutTime->addDay();
-                    }
-
-                    // Calculate late, early leaving, and overtime
-                    $attendance->late = $clockInTime->greaterThan($shiftStartDateTime->addSeconds($this->convertTimeToSeconds($gracePeriod)))
-                        ? $clockInTime->diff($shiftStartDateTime)->format('%H:%I:%S')
-                        : '00:00:00';
-
-                    $attendance->early_leaving = $clockOutTime->lessThan($shiftEndDateTime)
-                        ? $shiftEndDateTime->diff($clockOutTime)->format('%H:%I:%S')
-                        : '00:00:00';
-
-                    $attendance->overtime = $clockOutTime->greaterThan($shiftEndDateTime)
-                        ? $clockOutTime->diff($shiftEndDateTime)->format('%H:%I:%S')
-                        : '00:00:00';
-
-                    $attendance->save();
-                }
-
-                // Mark logs as processed
-                foreach ($logEntries as $log) {
-                    $log->processed = true;
-                    $log->save();
                 }
             }
 

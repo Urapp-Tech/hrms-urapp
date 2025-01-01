@@ -17,6 +17,7 @@ use App\Models\Department;
 use App\Models\Deposit;
 use App\Models\Employee;
 use App\Models\Expense;
+use App\Models\Holiday;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\PaySlip;
@@ -548,7 +549,8 @@ class ReportController extends Controller
                 $year     = date('Y');
                 $curMonth = date('M-Y', strtotime($year . '-' . $month));
             }
-            $leaves = Leave::whereIn('employee_id', $employeesCollection->pluck('id'))->whereMonth('start_date',$month)->get();
+            $leaves = Leave::whereIn('employee_id', $employeesCollection->pluck('id'))->whereMonth('start_date',$month)->orWhereMonth('end_date',$month)->get();
+            $holidays = Holiday::whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
 
             //            $num_of_days = cal_days_in_month(CAL_GREGORIAN, $month, $year);
             $num_of_days = date('t', mktime(0, 0, 0, $month, 1, $year));
@@ -557,7 +559,7 @@ class ReportController extends Controller
             }
 
             $employeesAttendance = [];
-            $totalPresent        = $totalLeave = $totalEarlyLeave = 0;
+            $totalPresent        = $totalLeave = $totalHoliday = $totalEarlyLeave = 0;
             $ovetimeHours        = $overtimeMins = $earlyleaveHours = $earlyleaveMins = $lateHours = $lateMins = 0;
             foreach ($employees as $id => $employee) {
                 $attendances['name'] = $employee;
@@ -565,7 +567,22 @@ class ReportController extends Controller
                 foreach ($dates as $date) {
                     $dateFormat = $year . '-' . $month . '-' . $date;
                     $dayOfWeek = date('w', strtotime($dateFormat));
-                    $employee_on_leave = $leaves->where('employee_id', $id)->where('start_date', '>=', $dateFormat)->where('end_date', '=<', $dateFormat)->where('status', 'Approved');
+                    $employee_leaves =  $leaves->where('employee_id', $id)->where('status', 'Approved');
+                    $employee_on_leave = $employee_leaves->filter(function ($item) use ($dateFormat) {
+                        $targetDate = Carbon::parse($dateFormat);
+                        $startDate = Carbon::parse($item['start_date']);
+                        $endDate = Carbon::parse($item['end_date']);
+                        return $targetDate->between($startDate, $endDate);
+                    });
+                    $holiday = $holidays->filter(function ($item) use ($dateFormat) {
+                        $targetDate = Carbon::parse($dateFormat);
+                        $startDate = Carbon::parse($item['start_date']);
+                        $endDate = Carbon::parse($item['end_date']);
+                        return $targetDate->between($startDate, $endDate);
+                    });
+
+
+
                     // dd($employee_on_leave, $id, $date);
                     if ($dateFormat <= date('Y-m-d')) {
                         $employeeAttendance = AttendanceEmployee::where('employee_id', $id)->where('date', $dateFormat)->first();
@@ -588,9 +605,12 @@ class ReportController extends Controller
                                 $lateHours += date('h', strtotime($employeeAttendance->late));
                                 $lateMins  += date('i', strtotime($employeeAttendance->late));
                             }
-                        } elseif (!empty($employee_on_leave) && $employee_on_leave->count() > 0) {
+                        } elseif (!empty($employee_on_leave) && $employee_on_leave->count() > 0 &&  ($dayOfWeek != 0 && $dayOfWeek != 6) ) {
                             $attendanceStatus[$date] = 'L';
                             $totalLeave              += 1;
+                        } elseif ((!empty($holiday) && $holiday->count() > 0) ) {
+                            $attendanceStatus[$date] = 'H';
+                            $totalHoliday              += 1;
                         } elseif (!empty($employeeAttendance) && $employeeAttendance->status == 'Leave') {
                             $attendanceStatus[$date] = 'A';
                             $totalLeave              += 1;
@@ -893,7 +913,9 @@ class ReportController extends Controller
 
             // Prepare data for each employee
             $attendanceSheets = [];
-            $leaves = Leave::whereIn('employee_id', $employees->pluck('id'))->whereMonth('start_date',$month)->get();
+            $leaves = Leave::whereIn('employee_id', $employees->pluck('id'))->whereMonth('start_date',$month)->orWhereMonth('end_date',$month)->get();
+            $holidays = Holiday::whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
+            // dd($holidays);
 
             foreach ($employees as $employee) {
                 $shift = Shift::find($employee->shift_id);
@@ -926,16 +948,36 @@ class ReportController extends Controller
                     ];
                     $status = 'Present';
                     $late = $earlyLeaving = $overtime = '00:00:00';
-                    $employee_on_leave = $leaves->where('employee_id', $employee->id)->where('start_date', '>=', $date)->where('end_date', '=<', $date)->where('status', 'Approved');
-                    $working = 0;
+                    $employee_leaves =  $leaves->where('employee_id', $employee->id)->where('status', 'Approved');
 
-                    if ($employee_on_leave && $employee_on_leave->count() > 0) {
+                    $employee_on_leave = $employee_leaves->filter(function ($item) use ($date) {
+                        $targetDate = Carbon::parse($date);
+                        $startDate = Carbon::parse($item['start_date']);
+                        $endDate = Carbon::parse($item['end_date']);
+                        return $targetDate->between($startDate, $endDate);
+                    });
+
+                    $holiday = $holidays->filter(function ($item) use ($date) {
+                        $targetDate = Carbon::parse($date);
+                        $startDate = Carbon::parse($item['start_date']);
+                        $endDate = Carbon::parse($item['end_date']);
+                        return $targetDate->between($startDate, $endDate);
+                    });
+
+                    $working = 0;
+                    $dayOfWeek = date('w', strtotime($date));
+
+                    if ($employee_on_leave && $employee_on_leave->count() > 0 && ($dayOfWeek != 0 && $dayOfWeek != 6)) {
                         $status = 'Leave';
+                    }
+                    else if ($holiday && $holiday->count() > 0) {
+                        $status = 'Holiday';
                     }
                     else if (empty($attendance)) {
                         // Check if the day is a weekend (Saturday or Sunday)
-                        $dayOfWeek = date('w', strtotime($date));
                         if ($dayOfWeek == 0 || $dayOfWeek == 6) {
+                            $status = 'Holiday';
+                        } else if (  !empty($holiday) && $holiday->count() > 0 ) {
                             $status = 'Holiday';
                         } else if (  !empty($employee_on_leave) && $employee_on_leave->count() > 0 ) {
                             $status = 'Leave';

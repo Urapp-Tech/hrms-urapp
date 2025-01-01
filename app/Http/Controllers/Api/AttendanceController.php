@@ -18,9 +18,9 @@ class AttendanceController extends Controller
     {
         // Validate the request
         $validated = $request->validate([
-            '*.enrollmentNumber' => 'required|exists:employees,biometric_emp_id',
+            '*.enrollmentNumber' => 'required',
             '*.machineNumber' => 'required|integer',
-            '*.time' => 'required|date_format:Y-m-d\TH:i:s\Z',
+            '*.time' => 'required|date_format:Y-m-d\TH:i:s.v\Z',
             '*.status' => 'required|integer|min:0|max:5',
         ]);
 
@@ -34,6 +34,9 @@ class AttendanceController extends Controller
                 // Get employee by enrollment number and company
                 $employee = $this->getEmployeeByEnrollmentNumberAndCompany($attendance['enrollmentNumber'], $companyId);
 
+                if(!$employee) {
+                    continue;
+                }
                 // Log the attendance status
                 AttendanceLog::create([
                     'employee_id' => $employee->id,
@@ -148,15 +151,15 @@ class AttendanceController extends Controller
     /**
      * Get employee by enrollment number and company ID.
      */
-    private function getEmployeeByEnrollmentNumberAndCompany(int $enrollmentNumber, int $companyId): Employee
+    private function getEmployeeByEnrollmentNumberAndCompany(int $enrollmentNumber, int $companyId): Employee|null
     {
         $employee = Employee::where('biometric_emp_id', $enrollmentNumber)
             ->where('created_by', $companyId)
             ->first();
 
-        if (!$employee) {
-            throw new \Exception("Employee with enrollment number {$enrollmentNumber} not found for company ID {$companyId}.");
-        }
+        // if (!$employee) {
+        //     throw new \Exception("Employee with enrollment number {$enrollmentNumber} not found for company ID {$companyId}.");
+        // }
 
         return $employee;
     }
