@@ -20,6 +20,12 @@
             {{ Form::label('occasion', __('Occasion'), ['class' => 'col-form-label']) }}<x-required></x-required>
             {{ Form::text('occasion', null, ['class' => 'form-control', 'required' => 'required', 'placeholder' => 'Enter Occasion']) }}
         </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('employee_id', __('Employee'), ['class' => 'col-form-label']) }}<x-required></x-required>
+            <button type="button" class="btn btn-sm btn-primary mb-2" id="select-all-employees">{{ __('Select All') }}</button>
+            <button type="button" class="btn btn-sm btn-secondary mb-2" id="deselect-all-employees">{{ __('Deselect All') }}</button>
+            {{ Form::select('employee_id[]', $employees, null, ['class' => 'form-control', 'id' => 'employee-choices-multiple', 'multiple' => '', 'required' => 'required']) }}
+        </div>
         <div class="form-group col-md-6">
             {{ Form::label('start_date', __('Start Date'), ['class' => 'col-form-label']) }}
             {{ Form::date('start_date', null, ['class' => 'form-control current_date', 'autocomplete' => 'off']) }}
@@ -56,5 +62,25 @@
         if (day < 10) day = "0" + day;
         var today = now.getFullYear() + '-' + month + '-' + day;
         $('.current_date').val(today);
+
+
+        const employeeSelect = new Choices('#employee-choices-multiple', {
+                removeItemButton: true,
+            });
+
+        // Select All Employees
+        $('#select-all-employees').on('click', function () {
+            const choices = employeeSelect.config.choices; // Get all options
+            choices.forEach(option => {
+                if (!option.selected) {
+                    employeeSelect.setChoiceByValue(option.value); // Select the option by value
+                }
+            });
+        });
+
+        // Deselect All Employees
+        $('#deselect-all-employees').on('click', function () {
+            employeeSelect.removeActiveItems(); // Deselect all selected items
+        });
     });
 </script>

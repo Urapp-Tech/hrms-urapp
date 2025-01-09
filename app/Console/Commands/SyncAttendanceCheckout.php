@@ -32,7 +32,11 @@ class SyncAttendanceCheckout extends Command
     public function handle()
     {
         try {
-            $logs = AttendanceLog::where('processed', false)
+            $logs = AttendanceLog::
+                    where( function ($q) {
+                        $q->where('processed', false)->orWhereDate('timestamp', Carbon::today());
+                        // $q->where('processed', false)->orWhereYear('timestamp', '2025');
+                    })
                 ->orderBy('employee_id')
                 ->orderBy('timestamp')
                 ->get()

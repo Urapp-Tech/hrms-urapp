@@ -307,4 +307,9 @@ class Employee extends Model
     public function biometricData() {
         return $this->hasOne(BiometricData::class, 'employee_id');
     }
+
+    public function holidays()
+    {
+        return $this->belongsToMany(Holiday::class, 'employee_holiday');
+    }
 }

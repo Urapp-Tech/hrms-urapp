@@ -550,7 +550,7 @@ class ReportController extends Controller
                 $curMonth = date('M-Y', strtotime($year . '-' . $month));
             }
             $leaves = Leave::whereIn('employee_id', $employeesCollection->pluck('id'))->whereMonth('start_date',$month)->orWhereMonth('end_date',$month)->get();
-            $holidays = Holiday::whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
+            $holidays = Holiday::with('employees')->whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
 
             //            $num_of_days = cal_days_in_month(CAL_GREGORIAN, $month, $year);
             $num_of_days = date('t', mktime(0, 0, 0, $month, 1, $year));
@@ -574,7 +574,13 @@ class ReportController extends Controller
                         $endDate = Carbon::parse($item['end_date']);
                         return $targetDate->between($startDate, $endDate);
                     });
-                    $holiday = $holidays->filter(function ($item) use ($dateFormat) {
+
+                    // Filter holidays specific to the employee
+                    $employee_holidays = $holidays->filter(function ($holiday) use ($id) {
+                        return $holiday->employees->contains('id', $id);
+                    });
+
+                    $holiday = $employee_holidays->filter(function ($item) use ($dateFormat) {
                         $targetDate = Carbon::parse($dateFormat);
                         $startDate = Carbon::parse($item['start_date']);
                         $endDate = Carbon::parse($item['end_date']);
@@ -914,7 +920,7 @@ class ReportController extends Controller
             // Prepare data for each employee
             $attendanceSheets = [];
             $leaves = Leave::whereIn('employee_id', $employees->pluck('id'))->whereMonth('start_date',$month)->orWhereMonth('end_date',$month)->get();
-            $holidays = Holiday::whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
+            $holidays = Holiday::with('employees')->whereMonth('start_date',$month)->orWhereMonth('end_date', $month)->get();
             // dd($holidays);
 
             foreach ($employees as $employee) {
@@ -957,7 +963,12 @@ class ReportController extends Controller
                         return $targetDate->between($startDate, $endDate);
                     });
 
-                    $holiday = $holidays->filter(function ($item) use ($date) {
+                    // Filter holidays specific to the employee
+                    $employee_holidays = $holidays->filter(function ($holiday) use ($employee) {
+                        return $holiday->employees->contains('id', $employee->id);
+                    });
+
+                    $holiday = $employee_holidays->filter(function ($item) use ($date) {
                         $targetDate = Carbon::parse($date);
                         $startDate = Carbon::parse($item['start_date']);
                         $endDate = Carbon::parse($item['end_date']);

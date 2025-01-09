@@ -11,4 +11,9 @@ class Holiday extends Model
         'occasion',
         'created_by',
     ];
+
+    public function employees()
+    {
+        return $this->belongsToMany(Employee::class, 'employee_holiday');
+    }
 }

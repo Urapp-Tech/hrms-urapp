@@ -6,35 +6,69 @@
 <div class="modal-body">
 
     @if ($plan->enable_chatgpt == 'on')
-    <div class="card-footer text-end">
-        <a href="#" class="btn btn-sm btn-primary" data-size="medium" data-ajax-popup-over="true"
-            data-url="{{ route('generate', ['holiday']) }}" data-bs-toggle="tooltip" data-bs-placement="top"
-            title="{{ __('Generate') }}" data-title="{{ __('Generate Content With AI') }}">
-            <i class="fas fa-robot"></i>{{ __(' Generate With AI') }}
-        </a>
-    </div>
+        <div class="card-footer text-end">
+            <a href="#" class="btn btn-sm btn-primary" data-size="medium" data-ajax-popup-over="true"
+                data-url="{{ route('generate', ['holiday']) }}" data-bs-toggle="tooltip" data-bs-placement="top"
+                title="{{ __('Generate') }}" data-title="{{ __('Generate Content With AI') }}">
+                <i class="fas fa-robot"></i>{{ __(' Generate With AI') }}
+            </a>
+        </div>
     @endif
 
     <div class="row">
         <div class="form-group">
             {{ Form::label('occasion', __('Occasion'), ['class' => 'col-form-label']) }}<x-required></x-required>
-            {{ Form::text('occasion', null, ['class' => 'form-control', 'required' => 'required', 'placeholder'=>'Enter Occasion']) }}
+            {{ Form::text('occasion', null, ['class' => 'form-control', 'required' => 'required', 'placeholder' => 'Enter Occasion']) }}
+        </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('employee_id', __('Employee'), ['class' => 'col-form-label']) }}<x-required></x-required>
+            <button type="button" class="btn btn-sm btn-primary mb-2"
+                id="select-all-employees-edit">{{ __('Select All') }}</button>
+            <button type="button" class="btn btn-sm btn-secondary mb-2"
+                id="deselect-all-employees-edit">{{ __('Deselect All') }}</button>
+                {{ Form::select('employee_id[]', $employees, $selectedEmployees, ['class' => 'form-control', 'id' => 'employee-choices-multiple-edit', 'multiple' => '', 'required' => 'required']) }}
         </div>
         <div class="row col-md-12">
-        <div class="form-group col-md-6">
-            {{ Form::label('start_date', __('Start Date'), ['class' => 'col-form-label']) }}
-            {{ Form::date('start_date', null, ['class' => 'form-control ']) }}
-        </div>
-        <div class="form-group col-md-6">
-            {{ Form::label('end_date', __('End Date'), ['class' => 'col-form-label']) }}
-            {{ Form::date('end_date', null, ['class' => 'form-control ']) }}
-        </div>
+            <div class="form-group col-md-6">
+                {{ Form::label('start_date', __('Start Date'), ['class' => 'col-form-label']) }}
+                {{ Form::date('start_date', null, ['class' => 'form-control ']) }}
+            </div>
+            <div class="form-group col-md-6">
+                {{ Form::label('end_date', __('End Date'), ['class' => 'col-form-label']) }}
+                {{ Form::date('end_date', null, ['class' => 'form-control ']) }}
+            </div>
         </div>
     </div>
 </div>
 <div class="modal-footer">
     <input type="button" value="Cancel" class="btn btn-light" data-bs-dismiss="modal">
-     <input type="submit" value="{{ __('Update') }}" class="btn  btn-primary">
+    <input type="submit" value="{{ __('Update') }}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
 
+
+<script>
+    $(document).ready(function() {
+
+        const employeeSelect = new Choices('#employee-choices-multiple-edit', {
+            removeItemButton: true,
+        });
+
+
+
+        // Select All Employees
+        $('#select-all-employees-edit').on('click', function() {
+            const choices = employeeSelect.config.choices; // Get all options
+            choices.forEach(option => {
+                if (!option.selected) {
+                    employeeSelect.setChoiceByValue(option.value); // Select the option by value
+                }
+            });
+        });
+
+        // Deselect All Employees
+        $('#deselect-all-employees-edit').on('click', function() {
+            employeeSelect.removeActiveItems(); // Deselect all selected items
+        });
+    });
+</script>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\HolidayExport;
 use App\Imports\HolidayImport;
+use App\Models\Employee;
 use App\Models\Holiday as LocalHoliday;
 use Illuminate\Http\Request;
 use App\Models\Utility;
@@ -37,7 +38,12 @@ class HolidayController extends Controller
     public function create()
     {
         if (\Auth::user()->can('Create Holiday')) {
-            return view('holiday.create');
+            if (Auth::user()->type == 'employee') {
+                $employees = Employee::where('user_id', '=', Auth::user()->id)->first();
+            } else {
+                $employees = Employee::where('created_by', '=', Auth::user()->creatorId())->get()->pluck('name', 'id');
+            }
+            return view('holiday.create',compact('employees'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -53,6 +59,7 @@ class HolidayController extends Controller
                     'occasion' => 'required',
                     'start_date' => 'required',
                     'end_date' => 'required',
+                    'employee_id' => 'required|array',
                 ]
             );
 
@@ -68,6 +75,10 @@ class HolidayController extends Controller
             $holiday->end_date          = $request->end_date;
             $holiday->created_by = \Auth::user()->creatorId();
             $holiday->save();
+
+            if($request->has('employee_id')) {
+                $holiday->employees()->sync( $request->employee_id );
+            }
 
             // slack
             $setting = Utility::settings(\Auth::user()->creatorId());
@@ -139,7 +150,20 @@ class HolidayController extends Controller
     public function edit(LocalHoliday $holiday)
     {
         if (\Auth::user()->can('Edit Holiday')) {
-            return view('holiday.edit', compact('holiday'));
+            $holiday = $holiday->load('employees');
+
+            // Fetch all employees
+            $employees = Employee::pluck('name', 'id'); // Adjust the fields as per your Employee model
+
+            // Get preselected employee IDs
+            $selectedEmployees = $holiday->employees->pluck('id')->toArray();
+
+            if (Auth::user()->type == 'employee') {
+                $employees = Employee::where('user_id', '=', Auth::user()->id)->first();
+            } else {
+                $employees = Employee::where('created_by', '=', Auth::user()->creatorId())->get()->pluck('name', 'id');
+            }
+            return view('holiday.edit', compact('holiday','employees', 'selectedEmployees'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -155,6 +179,7 @@ class HolidayController extends Controller
                     'occasion' => 'required',
                     'start_date' => 'required',
                     'end_date' => 'required',
+                    'employee_id' => 'required|array',
                 ]
             );
 
@@ -168,6 +193,11 @@ class HolidayController extends Controller
             $holiday->start_date        = $request->start_date;
             $holiday->end_date          = $request->end_date;
             $holiday->save();
+
+            if($request->has('employee_id')) {
+                $holiday->employees()->sync( $request->employee_id );
+            }
+
 
             return redirect()->route('holiday.index')->with(
                 'success',
