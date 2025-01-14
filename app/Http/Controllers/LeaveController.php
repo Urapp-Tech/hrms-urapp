@@ -19,17 +19,44 @@ class LeaveController extends Controller
 {
     public function index()
     {
+        $leave_counts =[];
+        $date =[];
 
         if (\Auth::user()->can('Manage Leave')) {
             if (\Auth::user()->type == 'employee') {
                 $user     = \Auth::user();
                 $employee = Employee::where('user_id', '=', $user->id)->first();
                 $leaves = LocalLeave::where('employee_id', '=', $employee->id)->get();
+
+                if (!$employee->can_avail_leaves){
+                    $leave_counts = [];
+                }
+                else {
+
+                    $date = Utility::AnnualLeaveCycle($employee);
+
+                    $leave_counts = LeaveType::select(\DB::raw('COALESCE(SUM(leaves.total_leave_days),0) AS total_leave, leave_types.title, leave_types.days,leave_types.id'))
+                        ->leftjoin(
+                            'leaves',
+                            function ($join) use ($employee, $date) {
+                                $join->on('leaves.leave_type_id', '=', 'leave_types.id');
+                                $join->where('leaves.employee_id', '=', $employee->id);
+                                $join->where('leaves.status', '=', 'Approved');
+                                $join->where(function ($query) use ($employee, $date) {
+                                    $query->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
+                                    $query->orWhereBetween('leaves.end_date', [$date['start_date'],$date['end_date']]);
+                                });
+                                // $join->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
+                            }
+                        )->where('leave_types.created_by', '=', \Auth::user()->creatorId())->groupBy('leave_types.id')->get();
+                }
+
+
             } else {
                 $leaves = LocalLeave::where('created_by', '=', \Auth::user()->creatorId())->with(['employees', 'leaveType'])->get();
             }
 
-            return view('leave.index', compact('leaves'));
+            return view('leave.index', compact('leaves', 'leave_counts', 'date'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -347,6 +374,9 @@ class LeaveController extends Controller
     public function jsoncount(Request $request)
     {
         $employee = Employee::find($request->employee_id);
+        if (!$employee->can_avail_leaves){
+            return [];
+        }
         $date = Utility::AnnualLeaveCycle($employee);
 
         $leave_counts = LeaveType::select(\DB::raw('COALESCE(SUM(leaves.total_leave_days),0) AS total_leave, leave_types.title, leave_types.days,leave_types.id'))

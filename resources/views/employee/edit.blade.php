@@ -123,6 +123,28 @@
                                             {{ Form::label('shift_id', __('Select Employee Shift'), ['class' => 'form-label']) }}<x-required></x-required>
                                             {{ Form::select('shift_id', $shifts, null, ['class' => 'form-control', 'id' => 'shift_id', 'required' => 'required', 'placeholder' => __('Select Employee Shift')]) }}
                                         </div>
+                                        <div class="form-group col-md-6">
+                                            {{ Form::label('leave_start_date', __('Select Leave Start'), ['class' => 'form-label']) }}<x-required></x-required>
+                                            {{ Form::date('leave_start_date', $employee->leave_start_date , ['class' => 'form-control', 'id' => 'leave_start_date', 'required' => 'required', 'placeholder' => __('Select Employee Shift')]) }}
+                                        </div>
+                                        <div class="form-group col-md-6">
+                                            {!! Form::label('can_avail_leaves', 'Can Avail Leaves') !!}<span class="text-danger pl-1">*</span>
+                                            <br>
+                                            <div class="d-flex radio-check mt-3">
+                                                <div class="custom-control custom-radio custom-control-inline">
+                                                    <input type="radio" id="g_yes" value="true" name="can_avail_leaves"
+                                                        class="form-check-input"  @if ($employee->can_avail_leaves) checked="checked" @endif>
+                                                    <label class="form-check-label "
+                                                        for="g_yes">{{ __('Yes') }}</label>
+                                                </div>
+                                                <div class="custom-control custom-radio ms-1 custom-control-inline">
+                                                    <input type="radio" id="g_no" value="false" @if (!$employee->can_avail_leaves) checked="checked" @endif name="can_avail_leaves"
+                                                        class="form-check-input">
+                                                    <label class="form-check-label "
+                                                        for="g_no">{{ __('No') }}</label>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                     </div>
                                 </div>

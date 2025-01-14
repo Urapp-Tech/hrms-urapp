@@ -284,5 +284,27 @@
                 </div>
             </div>
         </div>
+
+        @foreach ($leave_counts as $allowed )
+            <div class="col-12 col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ $allowed->title }}
+                            <span class="text-sm text-secondary float-end">
+                                Renew:
+                                {{ isset($date['end_date']) ? \Carbon\Carbon::parse($date['end_date'])->addDay(1)->format('Y-m-d') : '' }}
+                            </span>
+                        </h5>
+                        <hr>
+                        <p class="card-text text-sm info  mb-0"> <strong class="font-bold">{{ __('Allowed Days') }}:</strong>  {{ $allowed->days }}</p>
+                        <p class="card-text text-sm info  mb-0"><strong class="font-bold">{{ __('Remaining Days') }}:</strong> {{ $allowed->days - $allowed->total_leave }}</p>
+                        <p class="card-text text-sm info "><strong class="font-bold">{{ __('Availed') }}:</strong> {{ $allowed->total_leave }}</p>
+                    </div>
+
+                </div>
+            </div>
+
+        @endforeach
     </div>
+
 @endsection

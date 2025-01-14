@@ -39,6 +39,8 @@ class Employee extends Model
         'machine_number',
         'fingerprint_index',
         'fingerprint_data',
+        'leave_start_date',
+        'can_avail_leaves',
     ];
 
     public function documents()

@@ -1859,9 +1859,9 @@ class Utility extends Model
 
     public static function AnnualLeaveCycle($employee)
     {
-        if ($employee && $employee->company_doj) {
+        if ($employee && ($employee->leave_start_date || $employee->company_doj)) {
             // Get the joining date and the current date
-            $joiningDate = $employee->company_doj; // e.g., '2022-02-01'
+            $joiningDate = $employee->leave_start_date ?? $employee->company_doj; // e.g., '2022-02-01'
             $currentDate = date('Y-m-d');          // e.g., '2025-01-01'
 
             // Extract the month and day from the joining date

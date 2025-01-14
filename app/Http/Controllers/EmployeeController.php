@@ -91,6 +91,8 @@ class EmployeeController extends Controller
                 'department_id' => 'required',
                 'designation_id' => 'required',
                 'shift_id' => 'required',
+                'can_avail_leaves' => 'required',
+                'leave_start_date' => 'required',
                 'document.*' => 'required',
             ];
             $rules['biometric_emp_id'] = [
@@ -189,6 +191,8 @@ class EmployeeController extends Controller
                     // 'biometric_emp_id' => !empty($request['biometric_emp_id']) ? $request['biometric_emp_id'] : '',
                     'branch_id' => $request['branch_id'],
                     'shift_id' => $request['shift_id'],
+                    'leave_start_date' => $request['leave_start_date'],
+                    'can_avail_leaves' => $request['can_avail_leaves']  == 'true',
                     'department_id' => $request['department_id'],
                     'designation_id' => $request['designation_id'],
                     'company_doj' => $request['company_doj'],
@@ -284,6 +288,7 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $id)
     {
+
         if (\Auth::user()->can('Edit Employee')) {
 
             $employee = Employee::findOrFail($id);
@@ -377,6 +382,7 @@ class EmployeeController extends Controller
 
             $employee = Employee::findOrFail($id);
             $input    = $request->all();
+            $input['can_avail_leaves']    = $input['can_avail_leaves'] == 'true' ;
             $input['documents'] = $document_implode;
             $employee->fill($input)->save();
             if ($request->salary) {
@@ -452,8 +458,31 @@ class EmployeeController extends Controller
 
             //     $employee     = Employee::find($empId);
             // $branch= Branch::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $date =[];
+            if (!$employee->can_avail_leaves){
+                $leave_counts = [];
+            }
+            else {
 
-            return view('employee.show', compact('employee', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
+                $date = Utility::AnnualLeaveCycle($employee);
+
+                $leave_counts = \App\Models\LeaveType::select(\DB::raw('COALESCE(SUM(leaves.total_leave_days),0) AS total_leave, leave_types.title, leave_types.days,leave_types.id'))
+                    ->leftjoin(
+                        'leaves',
+                        function ($join) use ($employee, $date) {
+                            $join->on('leaves.leave_type_id', '=', 'leave_types.id');
+                            $join->where('leaves.employee_id', '=', $employee->id);
+                            $join->where('leaves.status', '=', 'Approved');
+                            $join->where(function ($query) use ($employee, $date) {
+                                $query->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
+                                $query->orWhereBetween('leaves.end_date', [$date['start_date'],$date['end_date']]);
+                            });
+                            // $join->whereBetween('leaves.start_date', [$date['start_date'],$date['end_date']]);
+                        }
+                    )->where('leave_types.created_by', '=', \Auth::user()->creatorId())->groupBy('leave_types.id')->get();
+            }
+
+            return view('employee.show', compact('employee', 'employeesId', 'branches', 'departments', 'designations', 'documents', 'leave_counts', 'date'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
