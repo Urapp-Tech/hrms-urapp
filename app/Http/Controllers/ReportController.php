@@ -999,47 +999,45 @@ class ReportController extends Controller
                         }
                     } else {
 
-                        $metrics = $this->calculateAttendanceMetrics($attendance, $shift, $gracePeriod );
+                        // Calculate late
+                        $clockInTime =  date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $attendance->clock_in));
                         $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' .  $attendance->clock_out));
 
-                        if (strtotime( $attendance->clock_out) < strtotime($attendance->clock_in)) {
+                         // Calculate Working Hours
+                         if ( strtotime($clockInTime) <  strtotime($clockOutDateTime)  ) {
+                            $working = strtotime($clockOutDateTime) - strtotime($clockInTime);
+                            $totalWorkingHours = $this->addTimes( gmdate('H:i:s', $working),  $totalWorkingHours == 0 ? '00:00:00' : $totalWorkingHours);
+                        }
+
+                        $metrics = $this->calculateAttendanceMetrics($attendance, $shift, $working, $gracePeriod );
+
+
+                        if (strtotime( $clockOutDateTime) < strtotime($clockInTime) ) {
                             $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' .  $attendance->clock_out));
                         }
 
-                        // Calculate late
-                        $clockInTime = strtotime($attendance->clock_in);
-                        $clockOutTime = strtotime($attendance->clock_out);
+
 
                         // Calculate overtime
-                        $overtimeSeconds = strtotime($metrics['overtime']) ;
                         if(!(in_array($metrics['overtime'], ['00:00:00', '0:00:00']) || strtotime($metrics['overtime']) == 0)) {
                             $status .= $status ? ', Overtime' : 'Overtime';
-                            $totalShortSeconds = !in_array($metrics['early_leaving'], ['00:00:00', '0:00:00']) ? $this->convertTimeToSeconds($metrics['early_leaving']) : 0;
-                            $totalOverTimeSeconds = $this->convertTimeToSeconds($metrics['overtime']);
-                            if ($totalOverTimeSeconds > $totalShortSeconds) {
-                                $actualOverTimeSeconds = $totalOverTimeSeconds - $totalShortSeconds;
-                                $metrics['overtime'] = gmdate('H:i:s', $actualOverTimeSeconds);
-                                $totalOvertime = $this->addTimes($metrics['overtime'], $totalOvertime == 0 ? '00:00:00' : $totalOvertime);
-                            }
+                            $totalOvertime = $this->addTimes($metrics['overtime'], $totalOvertime == 0 ? '00:00:00' : $totalOvertime);
 
                         }
 
                         // Calculate half day
                         if(!(in_array($metrics['early_leaving'], ['00:00:00', '0:00:00']) || strtotime($metrics['early_leaving']) == 0)) {
                             $totalShortSeconds = $this->convertTimeToSeconds($metrics['early_leaving']);
-                            if ($totalShortSeconds >  1800 && $totalShortSeconds <= 10800 ) {
+                            if ($metrics['shift_duration']   == 14400 &&  $totalShortSeconds >= 7200  ) {
+                                $status .= $status ? ', Half Day' : 'Half Day';
+                                $totalHalfDays++;
+                            }
+                            else if ($totalShortSeconds > 10800 ) {
                                 $status .= $status ? ', Half Day' : 'Half Day';
                                 $totalHalfDays++;
                             }
                             $totalShort += $totalShortSeconds;
                         }
-
-                        // Calculate Working Hours
-                        if ( strtotime($clockInTime) <  strtotime($clockOutDateTime)  ) {
-                            $working = strtotime($clockOutDateTime) - $clockInTime;
-                            $totalWorkingHours = $this->addTimes( gmdate('H:i:s', $working),  $totalWorkingHours == 0 ? '00:00:00' : $totalWorkingHours);
-                        }
-
 
 
                         if(!(in_array($metrics['late'], ['00:00:00', '0:00:00']) || strtotime($metrics['late']) == 0)) {
@@ -1085,37 +1083,28 @@ class ReportController extends Controller
     }
 
 
-    function calculateAttendanceMetrics($attendance, $shift, $gracePeriod = '00:30:00')
+    function calculateAttendanceMetrics($attendance, $shift, $working, $gracePeriod = '00:30:00')
     {
         $shiftStartTime = $shift->start_time;
         $shiftEndTime = $shift->end_time;
         $isNightShift = strtotime($shiftStartTime) > strtotime($shiftEndTime);
 
         $clockIn = $attendance->clock_in;
-        $clockOut = $attendance->clock_out;
-        $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockOut));
-
-        if (strtotime($clockOut) < strtotime($clockIn)) {
-            $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' . $clockOut));
-        }
 
         $shiftEndDateTime = $isNightShift
             ? date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' . $shiftEndTime))
             : date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $shiftEndTime));
 
-        $late = $this->calculateLate($clockIn, $shiftStartTime, $gracePeriod);
-        $overtime = $this->calculateOvertime($clockOutDateTime, $shiftEndDateTime);
-        $earlyLeaving = $this->calculateEarlyLeaving($clockOutDateTime, $shiftEndDateTime);
+        $shiftDuration = strtotime($shiftEndDateTime) - strtotime( date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $shiftStartTime)));
 
-        if ($late != '00:00:00' && $overtime != '' && strtotime($overtime) > strtotime($late)) {
-            $overtime = strtotime($overtime) - strtotime($late);
-            $overtime = gmdate('H:i:s', $overtime);
-        }
+        $late = $this->calculateLate($clockIn, $shiftStartTime, $gracePeriod);
+
 
         return [
             'late' => $late,
-            'early_leaving' => $earlyLeaving,
-            'overtime' => $overtime,
+            'early_leaving' => $this->calculateEarlyLeaving($working, $shiftDuration),
+            'overtime' => $this->calculateOvertime($working, $shiftDuration),
+            'shift_duration' => $shiftDuration,
         ];
     }
 
@@ -1133,18 +1122,14 @@ class ReportController extends Controller
         return '00:00:00';
     }
 
-    function calculateEarlyLeaving($clockOut, $shiftEndTime)
+    function calculateEarlyLeaving($workingDuration, $shiftDuration)
     {
-        $endTime = strtotime($shiftEndTime);
-        $earlyLeavingSeconds = $endTime - strtotime($clockOut);
-        return $earlyLeavingSeconds > 0 ? gmdate('H:i:s', $earlyLeavingSeconds) : '00:00:00';
+        return  $workingDuration < $shiftDuration   ?  gmdate('H:i:s', $shiftDuration - $workingDuration  )  :  '00:00:00';
     }
 
-    function calculateOvertime($clockOut, $shiftEndTime)
+    function calculateOvertime($workingDuration, $shiftDuration)
     {
-        $endTime = strtotime($shiftEndTime);
-        $overtimeSeconds = strtotime($clockOut) - $endTime;
-        return $overtimeSeconds > 0 ? gmdate('H:i:s', $overtimeSeconds) : '00:00:00';
+        return  $workingDuration > $shiftDuration   ?  gmdate('H:i:s',  $workingDuration - $shiftDuration )  :  '00:00:00';
     }
 
     function addTimes(string $time1, string $time2): string

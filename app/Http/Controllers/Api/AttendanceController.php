@@ -99,11 +99,16 @@ class AttendanceController extends Controller
                         if ($clockOutTime < $clockInTime) {
                             $clockOutTime = strtotime("+1 day " . $data['clock_out']);
                         }
+                        $working = 0;
+                        $shiftDuration = strtotime($shiftEndDateTime) - strtotime( date('Y-m-d H:i:s', strtotime($attendanceDate . ' ' . $shiftStartTime)));
+                        if ( $clockInTime <  $clockOutTime  ) {
+                            $working = $clockOutTime - $clockInTime;
+                        }
 
                         // Calculate late, early leaving, and overtime
                         $data['late'] = $this->calculateLate($existingAttendance->clock_in, $shiftStartTime, $gracePeriod);
-                        $data['early_leaving'] = $this->calculateEarlyLeaving($clockOutTime, strtotime($shiftEndDateTime));
-                        $data['overtime'] = $this->calculateOvertime($clockOutTime, strtotime($shiftEndDateTime));
+                        $data['early_leaving'] = $this->calculateEarlyLeaving($working, $shiftDuration);
+                        $data['overtime'] = $this->calculateOvertime($working, $shiftDuration);
                     }
                 }
 
@@ -183,26 +188,19 @@ class AttendanceController extends Controller
     /**
      * Calculate early leaving time.
      */
-    private function calculateEarlyLeaving(int $clockOutTime, int $shiftEndTime): string
+    private function calculateEarlyLeaving($workingDuration, $shiftDuration)
     {
-        if ($clockOutTime < $shiftEndTime) {
-            return gmdate('H:i:s', $shiftEndTime - $clockOutTime);
-        }
-
-        return '00:00:00';
+        return  $workingDuration < $shiftDuration   ?  gmdate('H:i:s', $shiftDuration - $workingDuration  )  :  '00:00:00';
     }
 
     /**
      * Calculate overtime.
      */
-    private function calculateOvertime(int $clockOutTime, int $shiftEndTime): string
+    private function calculateOvertime($workingDuration, $shiftDuration)
     {
-        if ($clockOutTime > $shiftEndTime) {
-            return gmdate('H:i:s', $clockOutTime - $shiftEndTime);
-        }
-
-        return '00:00:00';
+        return  $workingDuration > $shiftDuration   ?  gmdate('H:i:s',  $workingDuration - $shiftDuration )  :  '00:00:00';
     }
+
 
     public function getValByName($key, $setting)
     {

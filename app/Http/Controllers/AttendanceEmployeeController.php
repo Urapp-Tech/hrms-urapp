@@ -273,20 +273,22 @@ class AttendanceEmployeeController extends Controller
             $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $request->date . ' ' . $clockOut));
         }
 
+        $working = 0;
+        $shiftDuration = strtotime($shiftEndDateTime) - strtotime( $shiftStartDateTime);
+        if (  strtotime($clockInDateTime)  <  strtotime($clockOutDateTime)  ) {
+            $working = strtotime($clockOutDateTime) - strtotime($clockInDateTime);
+        }
+
+
         // Calculate late, early leaving, and overtime
         $late = $this->calculateLate($clockIn, $shiftStartTime);
         $earlyLeaving = $clockOutDateTime
-            ? $this->calculateEarlyLeaving($clockOutDateTime, $shiftEndDateTime, $isNightShift)
+            ? $this->calculateEarlyLeaving($working, $shiftDuration)
             : 0;
         $overtime = $clockOutDateTime
-            ? $this->calculateOvertime($clockOutDateTime, $shiftEndDateTime, $isNightShift)
+            ? $this->calculateOvertime($working, $shiftDuration)
             : 0;
 
-            if ($late != '00:00:00' && $overtime != '' && strtotime($overtime) > strtotime($late)) {
-                $overtime = strtotime($overtime) - strtotime($late);
-                $overtime = gmdate('H:i:s',$overtime);
-
-            }
 
 
         // Create attendance record
@@ -644,19 +646,23 @@ class AttendanceEmployeeController extends Controller
         if ($is_manager) {
             $clockIn = $request->clock_in ?? $attendance->clock_in;
             $clockOut = $request->clock_out ?? ($attendance->clock_out);
+            $clockInDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockIn));
             $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockOut));
             if (strtotime($clockOut) < strtotime($clockIn)) {
                 $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " .  $attendance->date . ' ' . $clockOut));
             }
 
-            $late =  $this->calculateLate($clockIn, $shiftStartTime);
-            $overtime = $this->calculateOvertime($clockOutDateTime, $shiftEndDateTime, $isNightShift);
-            if ($late != '00:00:00' && $overtime != '' && strtotime($overtime) > strtotime($late)) {
-                $overtime = strtotime($overtime) - strtotime($late);
-                $overtime = gmdate('H:i:s',$overtime);
+            $working = 0;
+            $shiftDuration = strtotime($shiftEndDateTime) - strtotime( $shiftStartDateTime);
+            if (  strtotime($clockInDateTime)  <  strtotime($clockOutDateTime)  ) {
+                $working = strtotime($clockOutDateTime) - strtotime($clockInDateTime);
             }
+
+            $late =  $this->calculateLate($clockIn, $shiftStartTime);
+            $overtime = $this->calculateOvertime($working, $shiftDuration);
+
             $attendance->late = $late;
-            $attendance->early_leaving = $this->calculateEarlyLeaving($clockOutDateTime, $shiftEndDateTime, $isNightShift);
+            $attendance->early_leaving = $this->calculateEarlyLeaving($working, $shiftDuration);
             $attendance->overtime = $overtime;
             $attendance->clock_in = $clockIn;
             $attendance->clock_out = $clockOut;
@@ -672,6 +678,7 @@ class AttendanceEmployeeController extends Controller
         $clockIn = $attendance->clock_in;
         $clockOut =  date('H:i:s');
         $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockOut));
+        $clockInDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $clockIn));
 
         if (strtotime($clockOut) < strtotime($clockIn)) {
             $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " .  $attendance->date . ' ' . $clockOut));
@@ -679,17 +686,17 @@ class AttendanceEmployeeController extends Controller
 
         $late = $this->calculateLate($clockIn, $shiftStartTime);
 
-        if (strtotime($clockOutDateTime) > strtotime($shiftEndDateTime)) {
-            $overtime =  $this->calculateOvertime($clockOutDateTime, $shiftEndDateTime, $isNightShift);
-            if ($late != '00:00:00' && $overtime != '' && strtotime($overtime) > strtotime($late)) {
-                $overtime = strtotime($overtime) - strtotime($late);
-                $overtime = gmdate('H:i:s',$overtime);
-            }
-            $attendance->overtime = $overtime;
+        $working = 0;
+        $shiftDuration = strtotime($shiftEndDateTime) - strtotime( $shiftStartDateTime);
+        if (  strtotime($clockInDateTime)  <  strtotime($clockOutDateTime)  ) {
+            $working = strtotime($clockOutDateTime) - strtotime($clockInDateTime);
         }
 
+        $overtime =  $this->calculateOvertime($working, $shiftDuration);;
+        $attendance->overtime = $overtime;
+
         $attendance->late = $late;
-        $attendance->early_leaving = $this->calculateEarlyLeaving($clockOutDateTime, $shiftEndDateTime, $isNightShift);
+        $attendance->early_leaving = $this->calculateEarlyLeaving($working, $shiftDuration);
         $attendance->clock_in = $clockIn;
         $attendance->clock_out = $clockOut;
 
@@ -1212,19 +1219,15 @@ class AttendanceEmployeeController extends Controller
         return $lateSeconds > 0 ? gmdate('H:i:s', $lateSeconds) : '00:00:00';
     }
 
-    protected function calculateEarlyLeaving($clockOut, $shiftEndTime, $isNightShift)
+    private function calculateEarlyLeaving($workingDuration, $shiftDuration)
     {
-        // $endTime = $isNightShift ? strtotime('+1 day', strtotime($shiftEndTime)) : strtotime($shiftEndTime);
-        $endTime = strtotime($shiftEndTime);
-        $earlyLeavingSeconds = $endTime - strtotime($clockOut);
-        return $earlyLeavingSeconds > 0 ? gmdate('H:i:s', $earlyLeavingSeconds) : '00:00:00';
+        return  $workingDuration < $shiftDuration   ?  gmdate('H:i:s', $shiftDuration - $workingDuration  )  :  '00:00:00';
     }
 
-    protected function calculateOvertime($clockOut, $shiftEndTime, $isNightShift)
+
+    protected function calculateOvertime($workingDuration, $shiftDuration)
     {
-        // $endTime = $isNightShift ? strtotime('+1 day', strtotime($shiftEndTime)) : strtotime($shiftEndTime);
-        $endTime = strtotime($shiftEndTime);
-        $overtimeSeconds =  strtotime($clockOut) - $endTime;
-        return $overtimeSeconds > 0 ? gmdate('H:i:s', $overtimeSeconds) : '00:00:00';
+        return  $workingDuration > $shiftDuration   ?  gmdate('H:i:s',  $workingDuration - $shiftDuration )  :  '00:00:00';
     }
+
 }
