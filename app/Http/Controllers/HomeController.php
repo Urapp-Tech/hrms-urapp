@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\Payees;
 use App\Models\Payer;
 use App\Models\Plan;
+use App\Models\RemoteAttendancePermission;
 use App\Models\Shift;
 use App\Models\Ticket;
 use App\Models\User;
@@ -39,7 +40,7 @@ class HomeController extends Controller
      */
     public function index()
     {
-
+        $employeeRemoteAttendance = false;
         if (Auth::check()) {
             $user = Auth::user();
             if ($user->type == 'employee') {
@@ -106,9 +107,13 @@ class HomeController extends Controller
                 $officeTime['startTime'] = Utility::getValByName('company_start_time');
                 $officeTime['endTime']   = Utility::getValByName('company_end_time');
 
+                $employeeRemoteAttendance = RemoteAttendancePermission::where('employee_id', $emp->id)->where(function ($q) {
+                    $q->whereDate('start_date', '>=' , now()->format('Y-m-d'))->where('end_date', '<=' , now()->format('Y-m-d'));
+                })->where('status', 'approved')->exists();
 
 
-                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime', 'shift'));
+
+                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime', 'shift', 'employeeRemoteAttendance'));
             } else if ($user->type == 'super admin') {
                 $user                       = \Auth::user();
                 $user['total_user']         = $user->countCompany();
@@ -177,7 +182,7 @@ class HomeController extends Controller
 
                 $shift = null;
 
-                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'activeJob', 'inActiveJOb', 'meetings', 'countEmployee', 'countUser', 'countTicket', 'countOpenTicket', 'countCloseTicket', 'notClockIns', 'accountBalance', 'totalPayee', 'totalPayer', 'users', 'plan', 'storage_limit', 'shift'));
+                return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'activeJob', 'inActiveJOb', 'meetings', 'countEmployee', 'countUser', 'countTicket', 'countOpenTicket', 'countCloseTicket', 'notClockIns', 'accountBalance', 'totalPayee', 'totalPayer', 'users', 'plan', 'storage_limit', 'shift', 'employeeRemoteAttendance'));
             }
         } else {
             if (!file_exists(storage_path() . "/installed")) {

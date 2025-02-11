@@ -112,6 +112,7 @@ use App\Http\Controllers\PayslipTypeController;
 use App\Http\Controllers\PaytabController;
 use App\Http\Controllers\PaytrController;
 use App\Http\Controllers\ReferralProgramController;
+use App\Http\Controllers\RemoteAttendancePermissionController;
 use App\Http\Controllers\SspayController;
 use App\Http\Controllers\TapPaymentController;
 use App\Http\Controllers\TemplateController;
@@ -1732,6 +1733,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('request-amount/{id}/{status}', [ReferralProgramController::class, 'requestedAmount'])->name('amount.request');
 
     Route::resource('shift', ShiftController::class)->middleware(
+        [
+            'auth',
+            'XSS',
+        ]
+    );
+    Route::resource('remote-attendance', RemoteAttendancePermissionController::class)->middleware(
         [
             'auth',
             'XSS',

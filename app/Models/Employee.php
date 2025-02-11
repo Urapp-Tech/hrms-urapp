@@ -314,4 +314,9 @@ class Employee extends Model
     {
         return $this->belongsToMany(Holiday::class, 'employee_holiday');
     }
+
+    public function remotePermissions()
+    {
+        return $this->hasMany(RemoteAttendancePermission::class);
+    }
 }

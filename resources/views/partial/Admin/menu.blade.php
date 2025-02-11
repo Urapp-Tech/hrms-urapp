@@ -183,6 +183,15 @@
                             class="dash-mtext">{{ __('Shift') }}</span></a>
                 </li>
             @endif
+            <!-- Manage Remote Attendance-->
+            @if (Gate::check('Manage Remote Attendance'))
+
+                <li class="dash-item {{ Request::segment(1) == 'remote-attendance' ? 'active' : '' }}">
+                    <a href="{{ route('remote-attendance.index') }}" class="dash-link"><span class="dash-micon"><i
+                                class="ti ti-clock"></i></span><span
+                            class="dash-mtext">{{ __('Remote Attendance') }}</span></a>
+                </li>
+            @endif
             <!-- employee-->
 
             <!-- payroll-->
