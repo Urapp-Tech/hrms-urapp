@@ -53,7 +53,7 @@ class LeaveController extends Controller
 
 
             } else {
-                $leaves = LocalLeave::where('created_by', '=', \Auth::user()->creatorId())->with(['employees', 'leaveType'])->get();
+                $leaves = LocalLeave::whereHas('employees')->where('created_by', '=', \Auth::user()->creatorId())->with(['employees', 'leaveType'])->get();
             }
 
             return view('leave.index', compact('leaves', 'leave_counts', 'date'));

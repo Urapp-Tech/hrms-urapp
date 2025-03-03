@@ -79,7 +79,7 @@
                                 @foreach ($leaves as $leave)
                                     <tr>
                                         @if (\Auth::user()->type != 'employee')
-                                            <td>{{ !empty($leave->employee_id) ? $leave->employees->name : '' }}
+                                            <td>{{ !empty($leave->employee_id) ? $leave->employees?->name : '' }}
                                             </td>
                                         @endif
                                         <td>{{ !empty($leave->leave_type_id) ? $leave->leaveType->title : '' }}
