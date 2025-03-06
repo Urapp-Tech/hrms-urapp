@@ -34,8 +34,10 @@ class SyncAttendanceCheckoutMonth extends Command
         try {
             $logs = AttendanceLog::
                     where( function ($q) {
+                        // $q->whereMonth('timestamp', 2);
                         $q->whereMonth('timestamp', Carbon::now()->month);
                     })
+                // ->whereIn('employee_id', [29])
                 ->orderBy('employee_id')
                 ->orderBy('timestamp')
                 ->get()
@@ -48,7 +50,7 @@ class SyncAttendanceCheckoutMonth extends Command
 
             foreach ($logs as $employeeId => $logsByDate) {
 
-                foreach ($logsByDate as $logEntries) {
+                foreach ($logsByDate as $logDate => $logEntries) {
                     # code...
                     $firstDutyInLog = $logEntries->sortBy('timestamp')->filter(function ($log) {
                         return $log->status === 'DUTY_ON' || $log->status === 'LOCK_IN';
@@ -64,6 +66,9 @@ class SyncAttendanceCheckoutMonth extends Command
 
                         // Fetch the employee's shift details
                         $employee = Employee::find($employeeId);
+                        if(!$employee) {
+                            continue;
+                        }
                         $settings = Utility::fetchSettings($employee->created_by);
                         $gracePeriod = $this->getValByName('company_grace_time', $settings);
                         $gracePeriod = $gracePeriod ?: '00:00:00';
@@ -90,12 +95,13 @@ class SyncAttendanceCheckoutMonth extends Command
                         $prevShiftAttendance = AttendanceEmployee::where('employee_id', $employee->id)
                         ->where('date', Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d'))
                         ->first();
-                        $attendanceDate= '';
+                        $attendanceDate= $shiftStartDate;
                         if (!$existingShiftAttendance && $isNightShift && in_array($lastDutyOffLog->status, ['DUTY_OFF', 'LOCK_OUT']) && $prevShiftAttendance) {
-                            $attendanceDate = Carbon::parse($shiftStartDate)->subDay()->format('Y-m-d');
+                            $this->updatePreviousClockOut($employeeId, $shiftStartDate, $clockOutTimestamp->format('H:i:s'));
+
                         }
-                        else {
-                            $attendanceDate = $shiftStartDate;
+                        else if ($isNightShift && $clockOutTimestamp->lt($clockOutTimestamp->copy()->setHour(12)->setMinute(0)->setSecond(0))) {
+                            $this->updatePreviousClockOut($employeeId, $shiftStartDate, $clockOutTimestamp->format('H:i:s'));
                         }
 
                         // $attendanceDate = $clockOutTimestamp->lessThanOrEqualTo($shiftEndTime)
@@ -213,5 +219,19 @@ class SyncAttendanceCheckoutMonth extends Command
         list($hours, $minutes, $seconds) = explode(':', $time);
         $totalSeconds = ($hours * 3600) + ($minutes * 60) + $seconds;
         return $totalSeconds;
+    }
+
+    function updatePreviousClockOut($employeeId,$date,$timeout) {
+        $attendanceDate = Carbon::parse($date)->subDay()->format('Y-m-d');
+
+        AttendanceEmployee::updateOrCreate(
+            [
+                'employee_id' => $employeeId,
+                'date' => $attendanceDate,
+            ],
+            [
+                'clock_out' => $timeout,
+            ]
+        );
     }
 }

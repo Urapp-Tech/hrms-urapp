@@ -1003,6 +1003,11 @@ class ReportController extends Controller
                         $clockInTime =  date('Y-m-d H:i:s', strtotime($attendance->date . ' ' . $attendance->clock_in));
                         $clockOutDateTime = date('Y-m-d H:i:s', strtotime($attendance->date . ' ' .  $attendance->clock_out));
 
+                        if (strtotime( $clockOutDateTime) < strtotime($clockInTime) ) {
+                            $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' .  $attendance->clock_out));
+                        }
+
+
                          // Calculate Working Hours
                          if ( strtotime($clockInTime) <  strtotime($clockOutDateTime)  ) {
                             $working = strtotime($clockOutDateTime) - strtotime($clockInTime);
@@ -1012,9 +1017,6 @@ class ReportController extends Controller
                         $metrics = $this->calculateAttendanceMetrics($attendance, $shift, $working, $gracePeriod );
 
 
-                        if (strtotime( $clockOutDateTime) < strtotime($clockInTime) ) {
-                            $clockOutDateTime = date('Y-m-d H:i:s', strtotime("+1 day " . $attendance->date . ' ' .  $attendance->clock_out));
-                        }
 
 
 
